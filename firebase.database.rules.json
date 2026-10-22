@@ -1,0 +1,97 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      ".read": "auth != null && auth.uid != null",
+      ".write": "auth != null && auth.uid != null",
+      "$email": {
+        ".read": "auth != null && auth.token.email != null && auth.token.email.replace('.', '_').replace('@', '_') === $email",
+        ".write": "auth != null && auth.token.email != null && auth.token.email.replace('.', '_').replace('@', '_') === $email",
+        "linked_boards": {
+          "$boardId": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          }
+        },
+        "Aquarium": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "$device": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            "switch_state": {
+              ".validate": "newData.isString() && (newData.val() === 'ON' || newData.val() === 'OFF')"
+            },
+            "off_timer": {
+              ".validate": "newData.isNumber() && newData.val() > 0"
+            },
+            "schedule_on": {
+              ".validate": "newData.isNumber() && newData.val() > 0"
+            },
+            "schedule_off": {
+              ".validate": "newData.isNumber() && newData.val() > 0"
+            }
+          }
+        },
+        "$system": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "_device_status": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          },
+          "_acknowledgments": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          },
+          "sensor_data": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          },
+          "metadata": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          },
+          "devices": {
+            "$device": {
+              ".read": "auth != null",
+              ".write": "auth != null"
+            }
+          }
+        }
+      }
+    },
+    "products": {
+      ".read": true,
+      ".write": "auth != null && auth.token.admin === true"
+    },
+    "journal": {
+      ".read": true,
+      ".write": "auth != null && auth.token.admin === true"
+    },
+    "siteContent": {
+      "$page": {
+        ".read": true,
+        ".write": "auth != null && auth.token.admin === true"
+      }
+    },
+    "admins": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    },
+    "orders": {
+      ".read": "auth != null && auth.token.admin === true",
+      "$orderId": {
+        ".read": "auth != null && (auth.token.admin === true || auth.uid === data.child('customerUid').val())",
+        ".write": false
+      }
+    },
+    "contactRequests": {
+      ".read": "auth != null && auth.token.admin === true",
+      ".write": false
+    }
+  }
+}
