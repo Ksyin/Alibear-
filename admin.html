@@ -1,0 +1,5 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Admin – AurumHome</title><link rel="stylesheet" href="/style.css"></head><body>
+<div class="w" style="padding-top:16px"><div style="display:flex;justify-content:space-between;align-items:center"><h1 style="color:var(--g)">Admin Panel</h1><div><a class="btn grad" style="color:#fff" href="/">View store</a> <button class="btn gold" onclick="logout()">Logout</button></div></div>
+<div id="lg" class="card al"><h3>Admin login</h3><input id="pw" type="password" placeholder="Password" onkeydown="if(event.key=='Enter')login()"><button class="btn gold" onclick="login()">Login</button></div>
+<div id="pn" style="display:none"><div class="stat" id="stt"></div><div class="tabs" id="tb"></div><div id="tc"></div></div></div><div class="toast" id="ts"></div>
+<script src="/data.js"></script><script src="/admin.js"></script></body></html>
