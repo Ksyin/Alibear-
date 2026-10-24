@@ -46,7 +46,7 @@ function showOrderNotice() {
   if (!notice) return;
   if (params.get('paid') === '1' && orderId) {
     notice.hidden = false;
-    notice.textContent = `Paystack confirmed your payment for order ${orderId}. Sign in with the same verified email used at checkout to link this order.`;
+    notice.textContent = `Paystack confirmed your payment for order ${orderId}. Sign in with the email used at checkout and your order connects automatically.`;
   } else if (orderId) {
     notice.hidden = false;
     notice.textContent = `Order ${orderId} is ready to connect to the verified email address used at checkout.`;
@@ -118,10 +118,6 @@ async function submit(event) {
 
 async function linkOrder(user) {
   if (!orderId) return;
-  if (!user.emailVerified) {
-    feedback('Verify your email using the link we sent before linking this order.', 'error');
-    return;
-  }
   try {
     await user.getIdToken(true);
     const result = await authenticatedRequest('/api/link-order', {
@@ -169,18 +165,16 @@ onAuthStateChanged(auth, async user => {
   const linkButton = $('link-order');
   const resendButton = $('account-resend');
   linkButton.hidden = !orderId || !user || user.isAnonymous;
-  resendButton.hidden = !user || user.isAnonymous || user.emailVerified;
+  resendButton.hidden = true;
   if (!user || user.isAnonymous) return;
 
   $('account-email').value = $('account-email').value || user.email || '';
   try {
     await user.reload();
     await user.getIdToken(true);
-    linkButton.hidden = !orderId || !user.emailVerified;
+    linkButton.hidden = true;
     resendButton.hidden = user.emailVerified;
-    if (!user.emailVerified) {
-      feedback('Verify your email before linking your order. Use the resend button if you need another link.', 'error');
-    }
+    if (orderId) linkOrder(user);
   } catch (error) {
     feedback(error.message || 'Could not refresh your account verification status.', 'error');
   }

@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const {
+  cfg,
   database,
   json,
   sendReceipt,
@@ -19,7 +20,7 @@ async function readRawBody(req) {
 }
 
 function validSignature(rawBody, signature) {
-  const secret = process.env.PAYSTACK_SECRET_KEY;
+  const secret = cfg('PAYSTACK_SECRET_KEY');
   if (!secret) throw new Error('PAYSTACK_SECRET_KEY is missing.');
   if (typeof signature !== 'string' || !/^[a-f0-9]{128}$/i.test(signature)) return false;
   const expected = crypto.createHmac('sha512', secret).update(rawBody).digest();

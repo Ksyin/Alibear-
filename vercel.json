@@ -19,7 +19,8 @@
     { "src": "link-order.js", "use": "@vercel/node" },
     { "src": "paystack-initialize.js", "use": "@vercel/node" },
     { "src": "paystack-verify.js", "use": "@vercel/node" },
-    { "src": "paystack-webhook.js", "use": "@vercel/node" }
+    { "src": "paystack-webhook.js", "use": "@vercel/node" },
+    { "src": "status.js", "use": "@vercel/node" }
   ],
   "routes": [
     { "src": "^/api/bootstrap-admin/?$", "dest": "/bootstrap-admin.js" },
@@ -29,6 +30,7 @@
     { "src": "^/api/paystack-initialize/?$", "dest": "/paystack-initialize.js" },
     { "src": "^/api/paystack-verify/?$", "dest": "/paystack-verify.js" },
     { "src": "^/api/paystack-webhook/?$", "dest": "/paystack-webhook.js" },
+    { "src": "^/api/status/?$", "dest": "/status.js" },
     { "src": "/", "dest": "/index.html" },
     { "handle": "filesystem" }
   ]

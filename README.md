@@ -20,17 +20,16 @@ A Vercel storefront using Firebase Realtime Database and Authentication, Cloudin
 
 Everything is in the repo root, no subfolders: HTML pages, `style.css` and browser JS (static), plus the serverless handlers (`bootstrap-admin.js`, `cloudinary-sign.js`, `contact-message.js`, `link-order.js`, `paystack-*.js`, shared `_lib.js`) that `vercel.json` routes to `/api/<name>`.
 
-## Deploy
+## Deploy (GitHub → Vercel, no Vercel settings needed)
 
-1. Push this folder to GitHub (all files at the repo root).
-2. Vercel > Add New Project > import the repo. Framework preset **Other**, leave Build Command and Output Directory empty. Vercel installs `firebase-admin` automatically.
-3. Add the variables from `.env.example` in Vercel > Settings > Environment Variables (all environments), then redeploy.
-4. Firebase Console > Authentication > Sign-in method: enable Email/Password. Under Settings > Authorized domains add `localhost`, your production domain **and** your `*.vercel.app` domain (Vercel preview URLs change per deploy, so test on the production domain). This is what fixes `auth/unauthorized-continue-uri`.
+All settings live in the repo: `config.js` (Paystack, Cloudinary, admin emails, Resend) and `firebase-service-account.json` (Firebase Admin key). Keep the repo **private**. Vercel env vars, if you ever set them, override `config.js`.
+
+1. Fill the empty values in `config.js` (at least `PAYSTACK_SECRET_KEY` for checkout, Cloudinary key and secret for image uploads).
+2. Push to GitHub. In Vercel import the repo, framework **Other**, no build command, no output directory.
+3. Open `https://your-site/api/status` to confirm Firebase and the settings load.
+4. Firebase Console > Authentication: enable Email/Password and add your domain and `*.vercel.app` under Settings > Authorized domains.
 5. Publish `firebase.database.rules.json` in Realtime Database > Rules.
 6. Paystack Dashboard > Settings > Webhooks: `https://your-domain/api/paystack-webhook`.
-7. Cloudinary keys and `RESEND_*` are optional until you use uploads and receipts.
-
-Every `git push` to the main branch redeploys automatically.
 
 The Firebase web-app configuration in `firebase-client.js` is public application configuration. Restrict its API key to the deployed site domains in Google Cloud/Firebase settings.
 

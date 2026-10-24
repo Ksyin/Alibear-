@@ -1,5 +1,27 @@
 const admin = require('firebase-admin');
 
+let fileConfig = {};
+try {
+  fileConfig = require('./config.js');
+} catch {
+  fileConfig = {};
+}
+
+// Setting lookup: Vercel env var first, then config.js in the repo.
+function cfg(name) {
+  return String(process.env[name] || fileConfig[name] || '').trim();
+}
+
+// Public address of the site: configured value, otherwise detected from the request.
+function siteUrl(req) {
+  const configured = cfg('PUBLIC_SITE_URL');
+  if (configured) return configured;
+  const host = req && (req.headers['x-forwarded-host'] || req.headers.host);
+  if (!host) throw new Error('Could not detect the site address.');
+  const proto = (req.headers['x-forwarded-proto'] || 'https').split(',')[0];
+  return `${proto}://${String(host).split(',')[0]}`;
+}
+
 function database() {
   initAdmin();
   return admin.database();
@@ -16,7 +38,7 @@ function bundledServiceAccount() {
 
 function initAdmin() {
   if (!admin.apps.length) {
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    const raw = cfg('FIREBASE_SERVICE_ACCOUNT_JSON');
     let credential;
     if (raw) {
       try {
@@ -24,21 +46,21 @@ function initAdmin() {
       } catch {
         throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON must contain valid service-account JSON.');
       }
-    } else if (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    } else if (cfg('FIREBASE_CLIENT_EMAIL') && cfg('FIREBASE_PRIVATE_KEY')) {
       credential = {
-        projectId: process.env.FIREBASE_PROJECT_ID || 'alibearautomation-b95ab',
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+        projectId: cfg('FIREBASE_PROJECT_ID') || 'alibearautomation-b95ab',
+        clientEmail: cfg('FIREBASE_CLIENT_EMAIL'),
+        privateKey: cfg('FIREBASE_PRIVATE_KEY').replace(/\\n/g, '\n')
       };
     } else if (bundledServiceAccount()) {
       credential = bundledServiceAccount();
     } else {
-      throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is missing. Add it in Vercel > Settings > Environment Variables (Production), then redeploy.');
+      throw new Error('Firebase service account not found: firebase-service-account.json must be in the repo root.');
     }
 
     admin.initializeApp({
       credential: admin.credential.cert(credential),
-      databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://alibearautomation-b95ab-default-rtdb.firebaseio.com'
+      databaseURL: cfg('FIREBASE_DATABASE_URL') || 'https://alibearautomation-b95ab-default-rtdb.firebaseio.com'
     });
   }
 }
@@ -66,7 +88,7 @@ async function body(req) {
 function requireSameOrigin(req) {
   const origin = req.headers.origin;
   if (!origin) return;
-  const allowed = process.env.PUBLIC_SITE_URL;
+  const allowed = cfg('PUBLIC_SITE_URL');
   if (allowed && new URL(origin).origin === new URL(allowed).origin) return;
   // Same host as the deployment (custom domain, *.vercel.app or preview URL).
   if (req.headers.host && new URL(origin).host === req.headers.host) return;
@@ -93,8 +115,8 @@ async function adminUser(req) {
 }
 
 function paystackSecret() {
-  const secret = process.env.PAYSTACK_SECRET_KEY;
-  if (!secret) throw new Error('Paystack is not configured. Add PAYSTACK_SECRET_KEY in Vercel environment settings.');
+  const secret = cfg('PAYSTACK_SECRET_KEY');
+  if (!secret) throw new Error('Paystack is not configured. Set PAYSTACK_SECRET_KEY in config.js.');
   return secret;
 }
 
@@ -150,8 +172,8 @@ function html(value) {
 }
 
 async function sendReceipt(order) {
-  const key = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM;
+  const key = cfg('RESEND_API_KEY');
+  const from = cfg('RESEND_FROM');
   if (!key || !from) return { sent: false, reason: 'Email is disabled until a verified sender is configured.' };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(from) || /@gmail\.com$/i.test(from)) {
     return { sent: false, reason: 'Configure a verified custom-domain sender address in RESEND_FROM.' };
@@ -174,6 +196,8 @@ async function sendReceipt(order) {
 }
 
 module.exports = {
+  cfg,
+  siteUrl,
   admin,
   body,
   database,

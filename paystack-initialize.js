@@ -7,6 +7,7 @@ const {
   phoneNumber,
   requireSameOrigin,
   sha256,
+  siteUrl,
   user
 } = require('./_lib');
 
@@ -95,9 +96,7 @@ module.exports = async function (req, res) {
     await db.ref(`orders/${orderId}`).set(order);
 
     try {
-      const siteUrl = process.env.PUBLIC_SITE_URL;
-      if (!siteUrl) throw new Error('PUBLIC_SITE_URL is missing from Vercel settings.');
-      const callback = new URL('/checkout.html', siteUrl);
+      const callback = new URL('/checkout.html', siteUrl(req));
       callback.searchParams.set('order', orderId);
       const transaction = await paystackRequest('/transaction/initialize', {
         email,
@@ -124,7 +123,7 @@ module.exports = async function (req, res) {
       throw error;
     }
   } catch (error) {
-    const unavailable = /PAYSTACK_SECRET_KEY|PUBLIC_SITE_URL|FIREBASE_SERVICE_ACCOUNT_JSON/.test(error.message);
+    const unavailable = /PAYSTACK_SECRET_KEY|Firebase service account/.test(error.message);
     return json(res, unavailable ? 503 : 400, {
       error: error.message || 'Could not start secure checkout.'
     });

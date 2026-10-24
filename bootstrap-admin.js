@@ -1,4 +1,4 @@
-const {body,database,json,requireSameOrigin,user}=require('./_lib');
+const {body,cfg,database,json,requireSameOrigin,user}=require('./_lib');
 
 module.exports=async function(req,res){
   if(req.method!=='POST')return json(res,405,{error:'Use POST to verify your administrator account.'});
@@ -9,7 +9,7 @@ module.exports=async function(req,res){
     const confirmation=await body(req);
     if(confirmation.action!=='claim')return json(res,400,{error:'Submit the administrator claim confirmation.'});
     const email=identity.email.toLowerCase();
-    const allowlist=String(process.env.ADMIN_EMAILS||'').split(',').map(item=>item.trim().toLowerCase()).filter(Boolean);
+    const allowlist=cfg('ADMIN_EMAILS').split(',').map(item=>item.trim().toLowerCase()).filter(Boolean);
     let allowed=identity.admin===true||allowlist.includes(email);
     if(!allowed){
       // First account ever created on the dashboard becomes the owner.
