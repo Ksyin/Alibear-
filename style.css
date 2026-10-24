@@ -567,3 +567,29 @@ footer{margin-top:70px;padding:48px 0 18px;background:#17283f;color:#e1e5e7}
 .admin-login .auth-feedback[data-tone=success]{background:#e8f5ec;color:#1f6b3a}
 .admin-login input:focus{outline:2px solid #f5cf73;border-color:#d4a017;background:#fff}
 @media(prefers-color-scheme:dark){.admin-login #admin-create,.admin-login #admin-cancel{border-color:#f5cf73;color:#f5cf73}.admin-login #admin-create:hover,.admin-login #admin-cancel:hover{background:#f5cf73;color:#17283f}.admin-login #admin-forgot,.admin-login #admin-resend{color:#f5cf73}}
+
+/* Visual site editor */
+.editor-body{margin:0;height:100vh;display:flex;flex-direction:column;background:#e9ebf0;overflow:hidden}
+.editor-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 16px;background:#17283f;color:#fff;z-index:5}
+.editor-logo{color:#fff;font-size:20px}
+.editor-field{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:650}
+.editor-field select{padding:7px 10px;border:0;border-radius:5px;font:inherit;font-size:12px;background:#fff;color:#17283f}
+.editor-devices{display:flex;border:1px solid #ffffff40;border-radius:6px;overflow:hidden}
+.editor-devices button{border:0;background:transparent;color:#fff;padding:7px 12px;font:inherit;font-size:12px;cursor:pointer}
+.editor-devices button.on{background:#f5cf73;color:#17283f;font-weight:700}
+.editor-status{flex:1;min-width:140px;font-size:12px;color:#f5cf73}
+.editor-actions{display:flex;align-items:center;gap:12px;font-size:12px}
+.editor-actions a,.editor-actions button{color:#fff;text-decoration:none;border:1px solid #ffffff40;border-radius:6px;padding:7px 12px;background:transparent;font:inherit;font-size:12px;cursor:pointer}
+.editor-actions a:hover,.editor-actions button:hover{background:#f5cf73;color:#17283f;border-color:#f5cf73}
+.editor-stage{flex:1;display:flex;justify-content:center;overflow:auto;padding:0}
+.editor-frame-wrap{width:100%;height:100%;transition:width .25s;background:#fff;box-shadow:0 0 24px #17283f22}
+.editor-frame-wrap iframe{width:100%;height:100%;border:0;display:block}
+@media(max-width:700px){.editor-bar{gap:8px;padding:8px}.editor-devices{display:none}.editor-actions{gap:6px}}
+/* In-page editing tools (inside the preview frame) */
+.ed-hover{outline:2px dashed #2b7fff!important;outline-offset:2px}
+.ed-selected{outline:3px solid #2b7fff!important;outline-offset:2px}
+.ed-hidden{opacity:.35!important;outline:2px dashed #c0392b!important}
+.ed-tools{position:absolute;z-index:99999;display:flex;flex-wrap:wrap;gap:4px;max-width:92vw;padding:5px;background:#17283f;border-radius:7px;box-shadow:0 6px 20px #0005;font-family:system-ui,sans-serif}
+.ed-tools button{border:0;border-radius:4px;padding:6px 10px;background:#2b3f5c;color:#fff;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.ed-tools button:hover{background:#f5cf73;color:#17283f}
+.content-editing .edit-mode-label{position:sticky;top:0}

@@ -9,6 +9,7 @@
     { "src": "app.js", "use": "@vercel/static" },
     { "src": "checkout.js", "use": "@vercel/static" },
     { "src": "content-editor.js", "use": "@vercel/static" },
+    { "src": "editor.js", "use": "@vercel/static" },
     { "src": "customer-account.js", "use": "@vercel/static" },
     { "src": "data.js", "use": "@vercel/static" },
     { "src": "firebase-client.js", "use": "@vercel/static" },

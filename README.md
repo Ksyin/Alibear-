@@ -2,6 +2,10 @@
 
 A Vercel storefront using Firebase Realtime Database and Authentication, Cloudinary product images and server-side Paystack payments. Project source files are kept in the repository root; the Vercel configuration routes root-level function files to `/api/...`.
 
+## Visual site editor
+
+After signing in on `/admin.html` you land on `/editor.html`: the real site in edit mode. Pick a page, click any text to type, click an image/section/link to change, re-link or hide it (header and footer included). Products, journal, orders and messages are under `/admin.html?dashboard=1`. Edits are stored in Firebase `siteContent` and applied for all visitors.
+
 ## Store pages
 
 - Home: `/` or `/index.html`
