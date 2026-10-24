@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Create your Alibear Automation account and securely pay for your order with Paystack.">
+  <meta name="theme-color" content="#17283f">
+  <title>Account and secure checkout | Alibear Automation</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="site-header"></div>
+  <main class="w checkout-layout">
+    <section class="checkout-main">
+      <span class="eyebrow">SECURE CHECKOUT</span>
+      <h1>One last step to make it yours.</h1>
+      <p>Create an account with your email, name and phone number, then continue to Paystack.</p>
+      <div class="checkout-tabs" aria-label="Account options">
+        <button type="button" class="active" data-checkout-mode="signup">Create account</button>
+        <button type="button" data-checkout-mode="signin">I already have an account</button>
+      </div>
+      <form id="checkout-form" class="checkout-form">
+        <label id="checkout-name-label" for="checkout-name">Your full name</label>
+        <input id="checkout-name" name="name" autocomplete="name" required placeholder="Name on your order">
+        <label for="checkout-email">Email address</label>
+        <input id="checkout-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com">
+        <label for="checkout-phone">Phone number</label>
+        <input id="checkout-phone" name="phone" type="tel" autocomplete="tel" required placeholder="+254 7XX XXX XXX">
+        <label id="checkout-password-label" for="checkout-password">Create a password</label>
+        <input id="checkout-password" name="password" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters">
+        <button id="checkout-submit" class="btn gold checkout-submit" type="submit">Create account and continue to Paystack →</button>
+        <div id="checkout-feedback" class="checkout-feedback" role="status" aria-live="polite" hidden></div>
+      </form>
+      <p class="checkout-security">Paystack processes your payment securely. Your card or payment details are never stored on this website. New accounts receive an email verification link.</p>
+    </section>
+    <aside class="checkout-summary">
+      <span class="eyebrow">YOUR ORDER</span>
+      <h2>Order summary</h2>
+      <div id="checkout-items" class="checkout-items"><p class="empty-state">Loading your cart…</p></div>
+      <div class="checkout-total-row"><b>Total</b><strong id="checkout-total">KSh 0</strong></div>
+      <p class="checkout-payment-note">Secure payment by Paystack · KES</p>
+      <a class="checkout-back-link" href="/products.html">← Continue shopping</a>
+    </aside>
+  </main>
+  <div id="site-footer"></div>
+  <div id="site-tools"></div>
+  <script src="/data.js"></script>
+  <script src="/layout.js"></script>
+  <script type="module" src="/checkout.js"></script>
+</body>
+</html>

@@ -7,6 +7,7 @@
     { "src": "style.css", "use": "@vercel/static" },
     { "src": "admin.js", "use": "@vercel/static" },
     { "src": "app.js", "use": "@vercel/static" },
+    { "src": "checkout.js", "use": "@vercel/static" },
     { "src": "content-editor.js", "use": "@vercel/static" },
     { "src": "customer-account.js", "use": "@vercel/static" },
     { "src": "data.js", "use": "@vercel/static" },
@@ -15,19 +16,19 @@
     { "src": "bootstrap-admin.js", "use": "@vercel/node" },
     { "src": "cloudinary-sign.js", "use": "@vercel/node" },
     { "src": "contact-message.js", "use": "@vercel/node" },
-    { "src": "daraja-callback.js", "use": "@vercel/node" },
-    { "src": "daraja-checkout.js", "use": "@vercel/node" },
     { "src": "link-order.js", "use": "@vercel/node" },
-    { "src": "order-status.js", "use": "@vercel/node" }
+    { "src": "paystack-initialize.js", "use": "@vercel/node" },
+    { "src": "paystack-verify.js", "use": "@vercel/node" },
+    { "src": "paystack-webhook.js", "use": "@vercel/node" }
   ],
   "routes": [
     { "src": "^/api/bootstrap-admin/?$", "dest": "/bootstrap-admin.js" },
     { "src": "^/api/cloudinary-sign/?$", "dest": "/cloudinary-sign.js" },
     { "src": "^/api/contact-message/?$", "dest": "/contact-message.js" },
-    { "src": "^/api/daraja-callback/?$", "dest": "/daraja-callback.js" },
-    { "src": "^/api/daraja-checkout/?$", "dest": "/daraja-checkout.js" },
     { "src": "^/api/link-order/?$", "dest": "/link-order.js" },
-    { "src": "^/api/order-status/?$", "dest": "/order-status.js" },
+    { "src": "^/api/paystack-initialize/?$", "dest": "/paystack-initialize.js" },
+    { "src": "^/api/paystack-verify/?$", "dest": "/paystack-verify.js" },
+    { "src": "^/api/paystack-webhook/?$", "dest": "/paystack-webhook.js" },
     { "src": "/", "dest": "/index.html" },
     { "handle": "filesystem" }
   ]

@@ -1,11 +1,174 @@
-import{auth,authenticatedRequest,createUserWithEmailAndPassword,sendEmailVerification,sendPasswordResetEmail,signInWithEmailAndPassword,updateProfile,onAuthStateChanged}from'./firebase-client.js';
-const $=id=>document.getElementById(id),parameters=new URLSearchParams(location.search),orderId=parameters.get('order'),orderToken=parameters.get('token');
-let mode='signup',accountOrder=null;
-function feedback(message,tone='info'){const target=$('account-feedback');if(target){target.textContent=message;target.dataset.tone=tone;target.hidden=!message}}
-function showOrder(){const container=$('account-order-notice');if(!container)return;if(parameters.get('paid')==='1'&&orderId){container.hidden=false;container.innerHTML=`<b>M-Pesa payment confirmed</b><span>Order ${orderId}. Create an account with the same checkout email to link this purchase. The payment receipt email is currently paused while the store configures a verified sender.</span>`}else if(orderId){container.hidden=false;container.innerHTML=`<b>Order ${orderId}</b><span>Use the email address you provided at checkout to connect your purchase to your account.</span>`}else if(orderToken){container.hidden=false;container.innerHTML='<b>Complete your order account setup</b><span>Create an account using the email address you entered at M-Pesa checkout to link your paid order.</span>'}}
-function selectMode(next){mode=next;document.querySelectorAll('[data-account-mode]').forEach(button=>button.classList.toggle('active',button.dataset.accountMode===next));$('account-name-label').hidden=next!=='signup';$('account-name').hidden=next!=='signup';$('account-name').required=next==='signup';$('account-password-label').hidden=next==='reset';$('account-password').hidden=next==='reset';$('account-password').required=next!=='reset';$('account-password').autocomplete=next==='signin'?'current-password':'new-password';$('account-submit').textContent={signup:'Create my account →',signin:'Sign in →',reset:'Send password reset email →'}[next];feedback('')}
-async function syncPaidOrder(user){if(!orderId||!user)return;try{const result=await authenticatedRequest('/api/link-order',{method:'POST',body:JSON.stringify({orderId})});accountOrder=result;feedback(`Order ${result.orderId||orderId} is linked to your account.`,'success')}catch(error){console.info('The checkout order has not been linked yet:',error.message)}}
-async function submit(event){event.preventDefault();const email=$('account-email').value.trim().toLowerCase(),password=$('account-password').value;if(!email)return feedback('Enter your email address.','error');try{if(mode==='reset'){await sendPasswordResetEmail(auth,email);feedback('If an account exists for this email, a password reset link is on its way.','success');return}if(mode==='signin'){await signInWithEmailAndPassword(auth,email,password);feedback('You are signed in.','success');return}if(password.length<8)return feedback('Use at least eight characters for your password.','error');if(orderId&&orderToken){const status=await fetch('/api/order-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({orderId,orderToken})});if(!status.ok)throw new Error('This order link could not be verified. Reopen the account link from the checkout page and try again.');const order=await status.json();if(order.email!==email)return feedback('Use the same email address you entered when you paid.','error');if(order.status!=='paid')return feedback('We have not yet received M-Pesa confirmation for this order. Wait for payment confirmation before creating the account.','error')}const result=await createUserWithEmailAndPassword(auth,email,password);if($('account-name').value.trim())await updateProfile(result.user,{displayName:$('account-name').value.trim()});await sendEmailVerification(result.user,{url:`${location.origin}/account.html${orderId?`?order=${encodeURIComponent(orderId)}`:''}`,handleCodeInApp:false});$('link-order').hidden=!orderId;feedback(orderId?'Account created. Check your inbox, verify your address, and return here to link your paid order.':'Account created. Check your email to verify your AurumHome account.','success')}catch(error){feedback(error.message||'Could not complete this account request.','error')}}
-async function linkOrder(){const user=auth.currentUser;if(!user)return feedback('Sign in with the verified checkout email to link your order.','error');try{await user.reload();await user.getIdToken(true);if(!user.emailVerified)return feedback('Open the Firebase email verification link first, then try again.','error');await syncPaidOrder(user);if(accountOrder){const result=await import('./firebase-client.js');const order=await result.get(result.ref(result.database,`orders/${accountOrder.orderId}`));if(order.exists()){const item=order.val();feedback(`Order linked. Your M-Pesa receipt is ${item.receiptNumber||'being processed'}. Receipt email status: ${item.receiptStatus==='sent'?'sent':'not configured yet'}.`,'success')}}}catch(error){feedback(error.message||'Could not link your order yet.','error')}}
-document.querySelectorAll('[data-account-mode]').forEach(button=>button.addEventListener('click',()=>selectMode(button.dataset.accountMode)));$('account-form')?.addEventListener('submit',submit);$('link-order')?.addEventListener('click',linkOrder);onAuthStateChanged(auth,async user=>{const linkButton=$('link-order');if(!user){linkButton.hidden=true;return}$('account-email').value=$('account-email').value||user.email||'';try{await user.reload();await user.getIdToken(true);linkButton.hidden=!orderId||!user.emailVerified}catch(error){linkButton.hidden=true;feedback(error.message||'Could not refresh your account verification status.','error')}});
-showOrder();selectMode('signup');
+import {
+  auth,
+  authenticatedRequest,
+  createUserWithEmailAndPassword,
+  database,
+  get,
+  onAuthStateChanged,
+  ref,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  updateProfile
+} from './firebase-client.js';
+
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const orderId = params.get('order');
+let mode = 'signup';
+
+function feedback(message, tone = 'info') {
+  const target = $('account-feedback');
+  if (!target) return;
+  target.textContent = message;
+  target.dataset.tone = tone;
+  target.hidden = !message;
+}
+
+function showOrderNotice() {
+  const notice = $('account-order-notice');
+  if (!notice) return;
+  if (params.get('paid') === '1' && orderId) {
+    notice.hidden = false;
+    notice.textContent = `Paystack confirmed your payment for order ${orderId}. Sign in with the same verified email used at checkout to link this order.`;
+  } else if (orderId) {
+    notice.hidden = false;
+    notice.textContent = `Order ${orderId} is ready to connect to the verified email address used at checkout.`;
+  }
+}
+
+function setMode(next) {
+  mode = next;
+  document.querySelectorAll('[data-account-mode]').forEach(button => {
+    button.classList.toggle('active', button.dataset.accountMode === next);
+  });
+  const signup = next === 'signup';
+  const reset = next === 'reset';
+  $('account-name-label').hidden = !signup;
+  $('account-name').hidden = !signup;
+  $('account-name').required = signup;
+  $('account-password-label').hidden = reset;
+  $('account-password').hidden = reset;
+  $('account-password').required = !reset;
+  $('account-password').minLength = signup ? 8 : 1;
+  $('account-password').autocomplete = signup ? 'new-password' : 'current-password';
+  $('account-submit').textContent = {
+    signup: 'Create my account →',
+    signin: 'Sign in →',
+    reset: 'Send password reset email →'
+  }[next];
+  feedback('');
+}
+
+async function submit(event) {
+  event.preventDefault();
+  const email = $('account-email').value.trim().toLowerCase();
+  const password = $('account-password').value;
+  const name = $('account-name').value.trim();
+
+  try {
+    if (mode === 'reset') {
+      await sendPasswordResetEmail(auth, email);
+      feedback('If an account exists for this email, Firebase has sent a password reset link.', 'success');
+      return;
+    }
+    if (mode === 'signin') {
+      await signInWithEmailAndPassword(auth, email, password);
+      return;
+    }
+    if (name.length < 2) {
+      feedback('Enter your name to create an account.', 'error');
+      return;
+    }
+    if (password.length < 8) {
+      feedback('Use at least eight characters for your password.', 'error');
+      return;
+    }
+
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(credential.user, { displayName: name });
+    await sendEmailVerification(credential.user, {
+      url: `${location.origin}/account.html${orderId ? `?order=${encodeURIComponent(orderId)}&paid=1` : ''}`,
+      handleCodeInApp: false
+    });
+    feedback('Account created. Check your inbox and verify your email before linking a paid order.', 'success');
+  } catch (error) {
+    feedback(error.message || 'Could not complete this account request.', 'error');
+  }
+}
+
+async function linkOrder(user) {
+  if (!orderId) return;
+  if (!user.emailVerified) {
+    feedback('Verify your email using the link we sent before linking this order.', 'error');
+    return;
+  }
+  try {
+    await user.getIdToken(true);
+    const result = await authenticatedRequest('/api/link-order', {
+      method: 'POST',
+      body: JSON.stringify({ orderId })
+    });
+    const snapshot = await get(ref(database, `orders/${result.orderId}`));
+    const order = snapshot.val();
+    feedback(
+      order
+        ? `Order linked. Paystack receipt: ${order.receiptNumber || order.reference}. Receipt email status: ${order.receiptStatus || 'pending'}.`
+        : 'Your order was linked, but its details are not available yet.',
+      'success'
+    );
+    $('link-order').hidden = true;
+  } catch (error) {
+    feedback(error.message || 'Could not link this order to your account.', 'error');
+  }
+}
+
+async function resendVerification() {
+  const user = auth.currentUser;
+  if (!user) {
+    feedback('Create an account or sign in before requesting a verification email.', 'error');
+    return;
+  }
+  try {
+    await sendEmailVerification(user, {
+      url: `${location.origin}/account.html${orderId ? `?order=${encodeURIComponent(orderId)}&paid=1` : ''}`,
+      handleCodeInApp: false
+    });
+    feedback('A new email verification link has been sent.', 'success');
+  } catch (error) {
+    feedback(error.message || 'Could not resend the verification email.', 'error');
+  }
+}
+
+document.querySelectorAll('[data-account-mode]').forEach(button => {
+  button.addEventListener('click', () => setMode(button.dataset.accountMode));
+});
+$('account-form').addEventListener('submit', submit);
+$('link-order').addEventListener('click', () => {
+  if (auth.currentUser) linkOrder(auth.currentUser);
+});
+$('account-resend').addEventListener('click', resendVerification);
+
+onAuthStateChanged(auth, async user => {
+  const linkButton = $('link-order');
+  const resendButton = $('account-resend');
+  linkButton.hidden = !orderId || !user || user.isAnonymous;
+  resendButton.hidden = !user || user.isAnonymous || user.emailVerified;
+  if (!user || user.isAnonymous) return;
+
+  $('account-email').value = $('account-email').value || user.email || '';
+  try {
+    await user.reload();
+    await user.getIdToken(true);
+    linkButton.hidden = !orderId || !user.emailVerified;
+    resendButton.hidden = user.emailVerified;
+    if (!user.emailVerified) {
+      feedback('Verify your email before linking your order. Use the resend button if you need another link.', 'error');
+    }
+  } catch (error) {
+    feedback(error.message || 'Could not refresh your account verification status.', 'error');
+  }
+});
+
+showOrderNotice();
+setMode('signup');

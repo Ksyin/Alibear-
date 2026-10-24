@@ -1,45 +1,50 @@
-# AurumHome
+# Alibear Automation
 
-A Vercel storefront with Firebase Realtime Database content, Firebase Authentication, Cloudinary product uploads and server-side M-Pesa checkout handlers. All project source files are in the repository root. Root-level Node.js handlers are routed to the public `/api/...` endpoints by `vercel.json`; there are no source subdirectories.
+A Vercel storefront using Firebase Realtime Database and Authentication, Cloudinary product images and server-side Paystack payments. Project source files are kept in the repository root; the Vercel configuration routes root-level function files to `/api/...`.
 
 ## Store pages
 
 - Home: `/` or `/index.html`
-- Shop: `/products.html` and individual `/product.html?id=...` pages
+- Shop and product details: `/products.html` and `/product.html?id=...`
 - Offers: `/deals.html`
 - How it works: `/how-it-works.html`
 - App: `/app-page.html`
 - About: `/about.html`
-- Journal (news and blog combined): `/blog.html`
+- Journal: `/blog.html` (news and blog are combined)
 - Contact: `/contact.html`
 - Customer account: `/account.html`
-- Owner dashboard: `/admin` or `/admin.html`
-
-`/news.html` redirects to the combined journal. The owner dashboard is not linked in the public storefront navigation.
+- Account-first checkout: `/checkout.html`
+- Store dashboard: `/admin.html`
 
 ## Vercel setup
 
-1. Import this project into Vercel and configure the repository root as the deployment root. `vercel.json` explicitly builds the root-level browser assets as static files and the root-level server handlers as Vercel Functions. `_lib.js` is included as a server-side dependency and is not published as a static asset.
-2. Set the environment variables shown in `.env.example` in Vercel Project Settings. Keep the Firebase service-account JSON, Cloudinary API secret, Daraja secrets and email-provider key in Vercel environment secrets only.
-3. Use a newly rotated Cloudinary API secret. The previously shared secret must not be reused.
-4. Start with Daraja sandbox credentials. Configure `DARAJA_CALLBACK_URL` as the deployed `/api/daraja-callback` URL. Use production credentials only after the sandbox payment flow has been tested.
+1. Import the project into Vercel with the repository root as the deployment root. `vercel.json` builds the root-level browser assets and deploys the root-level API handlers as Vercel Functions.
+2. Set the variables in `.env.example` in Vercel Project Settings. Keep `FIREBASE_SERVICE_ACCOUNT_JSON`, `PAYSTACK_SECRET_KEY`, Cloudinary secrets and email-provider credentials in Vercel environment settings only.
+3. Configure `PUBLIC_SITE_URL` with the exact HTTPS origin of the deployed storefront and configure `FIREBASE_DATABASE_URL` for the Realtime Database.
+4. Enable Email/Password sign-in in Firebase Authentication and add the deployed domain to its authorized domains.
 5. Publish `firebase.database.rules.json` in Firebase Console > Realtime Database > Rules.
-6. Create the owner account with the authorized email, verify it, then sign in at `/admin`. The bootstrap API grants the admin claim only to that configured, email-verified address.
+6. Configure Cloudinary's API key and secret before enabling product-image uploads.
+7. Configure `RESEND_FROM` with an address on a verified sending domain and add `RESEND_API_KEY` to enable order receipts.
+8. In Paystack Dashboard > Settings > Webhooks, register `https://your-store-domain/api/paystack-webhook` so paid orders are confirmed even if the customer closes the checkout page before returning to the store.
 
-The browser Firebase configuration in `firebase-client.js` is public application configuration, not a server credential. Restrict its API key to the deployed site domains in Google Cloud/Firebase settings.
+The Firebase web-app configuration in `firebase-client.js` is public application configuration. Restrict its API key to the deployed site domains in Google Cloud/Firebase settings.
+
+## Accounts and administration
+
+The admin dashboard supports email registration, email verification, sign-in and password reset. The current bootstrap policy grants administrator access to **every email-verified account**. That gives any person who registers and verifies an email full control of the catalogue, journal and site content. Restrict the bootstrap policy before opening the dashboard publicly if that is not intended.
+
+Customers create or sign in to an account from the checkout page before proceeding to Paystack. The same email address is used to connect the paid order to the account. Email verification is required to link an order from the account page.
+
+## Payments and receipts
+
+The Paystack secret is read only on the server from `PAYSTACK_SECRET_KEY`; do not add either Paystack key to browser code or commit a live secret. Checkout totals are recalculated from Firebase product prices by the server. Payment is marked paid only after the server verifies the transaction reference, amount, KES currency and customer email with Paystack.
+
+The server sends a receipt after successful verification when a verified Resend sender is configured. Receipt delivery status is saved with the order; a successful payment remains paid if email delivery is unavailable or fails. Never test a live charge without authorization for the specific amount and payment method.
 
 ## Store management
 
-The dashboard lets the verified owner manage products, journal posts, enquiries and editable storefront text. Product and journal images are uploaded to Cloudinary through short-lived server signatures; image files are limited to JPG, PNG or WebP and 8 MB.
-
-The initial sample catalogue uses Unsplash images. New images uploaded in the dashboard are stored in Cloudinary; existing demo images are not automatically migrated.
-
-## Payments, accounts and email
-
-The server handlers recalculate checkout totals from the Firebase product catalogue, create a pending order and request an M-Pesa STK push. A customer can create an account after payment confirmation, verify their email and link the paid order using the same checkout email. Do not treat checkout as production-ready until Firebase Admin credentials, database rules and Daraja callback settings are deployed and tested.
-
-Receipt emails are intentionally disabled until a verified custom-domain sender and Resend API key are configured. A Gmail address is not accepted as the Resend sender. The dashboard reports the email status for each order.
+The dashboard manages products, journal posts, enquiries and editable storefront text. Product and journal photos are uploaded to Cloudinary through short-lived server signatures; JPG, PNG and WebP images up to 8 MB are accepted. The starter catalogue uses Unsplash images and is not automatically migrated to Cloudinary.
 
 ## Local checks
 
-Use a static server for local storefront development. Firebase privileged APIs and M-Pesa checkout require Vercel Functions plus the corresponding environment settings. `npm install` installs the Firebase Admin SDK used by the root-level functions. Dependencies are installed by the deployment platform and are not committed as a nested project directory.
+Use a static server for storefront development. Firebase privileged APIs and Paystack checkout require Vercel Functions and their environment settings. `npm install` installs the Firebase Admin SDK used by server handlers.
