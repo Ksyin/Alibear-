@@ -5,16 +5,35 @@ function database() {
   return admin.database();
 }
 
+// Service-account key committed to the (private) repo as firebase-service-account.json.
+function bundledServiceAccount() {
+  try {
+    return require('./firebase-service-account.json');
+  } catch {
+    return null;
+  }
+}
+
 function initAdmin() {
   if (!admin.apps.length) {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-    if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is missing.');
-
     let credential;
-    try {
-      credential = JSON.parse(raw);
-    } catch {
-      throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON must contain valid service-account JSON.');
+    if (raw) {
+      try {
+        credential = JSON.parse(raw);
+      } catch {
+        throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON must contain valid service-account JSON.');
+      }
+    } else if (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+      credential = {
+        projectId: process.env.FIREBASE_PROJECT_ID || 'alibearautomation-b95ab',
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+      };
+    } else if (bundledServiceAccount()) {
+      credential = bundledServiceAccount();
+    } else {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is missing. Add it in Vercel > Settings > Environment Variables (Production), then redeploy.');
     }
 
     admin.initializeApp({
