@@ -4,7 +4,26 @@ const PAGE_OPTIONS=[['home','Home page'],['products','Shop page'],['deals','Offe
 let D=Store.load(),orders={},contactRequests={},tab='Dashboard',query='',previewPage='home',authMode='signin',ownerConfirmed=false,saveTimers=new Map();
 const products=()=>Array.isArray(D.products)?D.products:Object.values(D.products||{}),journal=()=>Array.isArray(D.journal)?D.journal:Object.values(D.journal||{});
 function sayAuth(message,tone='info'){const element=$('auth-feedback');if(element){element.textContent=message;element.dataset.tone=tone}}
-function setAuthMode(mode){authMode=mode;$('auth-heading').textContent={signin:'Welcome back',signup:'Create your Alibear Automation account',reset:'Reset your password'}[mode];$('auth-description').textContent={signin:'Sign in to manage Alibear Automation.',signup:'Register with any email address. Verify it to access the store dashboard.',reset:'Enter your email to receive a secure reset link.'}[mode];$('admin-name-label').hidden=mode!=='signup';$('admin-name').hidden=mode!=='signup';$('admin-name').required=mode==='signup';$('admin-password').hidden=mode==='reset';$('admin-password').required=mode!=='reset';$('admin-password').autocomplete=mode==='signin'?'current-password':'new-password';$('admin-auth-submit').textContent={signin:'Sign in to dashboard →',signup:'Create account →',reset:'Send reset link →'}[mode];$('admin-create').hidden=mode==='reset'||mode==='signup';$('admin-forgot').hidden=mode!=='signin';$('admin-cancel').hidden=mode==='signin';sayAuth('')}
+function authError(error){
+  const messages={
+    'auth/email-already-in-use':'An account already exists for this email. Sign in instead, or use Forgot password.',
+    'auth/invalid-credential':'The email or password is incorrect. Check them and try again, or reset your password.',
+    'auth/invalid-login-credentials':'The email or password is incorrect. Check them and try again, or reset your password.',
+    'auth/user-not-found':'No account exists for this email. Create an account first.',
+    'auth/wrong-password':'The password is incorrect. Try again or reset your password.',
+    'auth/invalid-email':'Enter a valid email address.',
+    'auth/weak-password':'Choose a password with at least 8 characters.',
+    'auth/too-many-requests':'Too many attempts. Wait a few minutes and try again.',
+    'auth/network-request-failed':'Could not connect to Firebase. Check your internet connection and try again.',
+    'auth/operation-not-allowed':'Email and password sign-in is not enabled in Firebase Authentication.',
+    'auth/unauthorized-domain':'This website domain is not authorized in Firebase Authentication settings.'
+  };
+  if(error?.message==='The service returned an invalid response.'||error?.name==='TypeError'&&/fetch/i.test(error.message||'')){
+    return 'Firebase sign-in may have succeeded, but the admin service could not be reached. Deploy this site on Vercel and configure its Firebase Admin environment variables.';
+  }
+  return messages[error?.code]||error?.message||'Could not complete this account request. Try again or reset your password.';
+}
+function setAuthMode(mode){authMode=mode;$('auth-heading').textContent={signin:'Welcome back',signup:'Create your Alibear Automation account',reset:'Reset your password'}[mode];$('auth-description').textContent={signin:'Sign in to manage Alibear Automation.',signup:'Register with any email address. Verify it to access the store dashboard.',reset:'Enter your email to receive a secure reset link.'}[mode];$('admin-name-label').hidden=mode!=='signup';$('admin-name').hidden=mode!=='signup';$('admin-name').required=mode==='signup';$('admin-password').hidden=mode==='reset';$('admin-password').required=mode!=='reset';$('admin-password').minLength=mode==='signup'?8:1;$('admin-password').autocomplete=mode==='signin'?'current-password':'new-password';$('admin-auth-submit').textContent={signin:'Sign in to dashboard →',signup:'Create account →',reset:'Send reset link →'}[mode];$('admin-create').hidden=mode==='reset'||mode==='signup';$('admin-forgot').hidden=mode!=='signin';$('admin-cancel').hidden=mode==='signin';sayAuth('')}
 async function initializeStore(){const result=await get(ref(database,'products'));if(!result.exists()){const catalog=Object.fromEntries(products().map((product,index)=>[String(product.id||Date.now()+index),product]));await update(ref(database),{products:catalog})}const articleSnapshot=await get(ref(database,'journal'));if(!articleSnapshot.exists()){const defaultJournal=Array.isArray(D.journal)?D.journal:Store.load().journal;const articles=Object.fromEntries(defaultJournal.map((item,index)=>[String(item.id||`article-${index}`),item]));await update(ref(database),{journal:articles})}}
 async function loadPrivateStoreData(){for(const[path,callback]of[['orders',value=>{orders=value||{};refreshVisibleTab()}],['contactRequests',value=>{contactRequests=value||{};refreshVisibleTab()}]])onValue(ref(database,path),snapshot=>callback(snapshot.val()))}
 function refreshVisibleTab(){if(tab==='Dashboard'||tab==='Enquiries')draw()}
@@ -28,6 +47,8 @@ function wireTab(){ $('product-form')?.addEventListener('submit',saveProduct);$(
 async function handleAuth(event){
   event.preventDefault();
   const email=$('admin-email').value.trim().toLowerCase(),password=$('admin-password').value;
+  const submit=$('admin-auth-submit');
+  submit.disabled=true;
   try{
     if(authMode==='reset'){
       await sendPasswordResetEmail(auth,email);
@@ -35,17 +56,31 @@ async function handleAuth(event){
       return;
     }
     if(authMode==='signup'){
+      const displayName=$('admin-name').value.trim();
+      if(displayName.length<2){sayAuth('Enter your name to create an account.','error');return}
       if(password.length<8)return sayAuth('Use at least eight characters for your password.','error');
       const credential=await createUserWithEmailAndPassword(auth,email,password);
-      const displayName=$('admin-name').value.trim();
-      if(displayName)await updateProfile(credential.user,{displayName});
-      await sendEmailVerification(credential.user,{url:`${location.origin}/admin.html?verified=1`,handleCodeInApp:false});
-      sayAuth('Account created. Check your inbox and verify your email before accessing the dashboard.','success');
+      await updateProfile(credential.user,{displayName});
+      try{
+        await sendEmailVerification(credential.user,{url:`${location.origin}/admin.html?verified=1`,handleCodeInApp:false});
+        sayAuth('Account created. Check your inbox and verify your email before accessing the dashboard.','success');
+      }catch(error){
+        $('admin-resend').hidden=false;
+        sayAuth(`Your account was created, but Firebase could not send the verification email. Use “Resend verification email” to try again. ${authError(error)}`,'error');
+      }
       return;
     }
     await signInWithEmailAndPassword(auth,email,password);
   }catch(error){
-    sayAuth(error.message||'Could not complete this account request.','error');
+    if(authMode==='signup'&&error?.code==='auth/email-already-in-use'){
+      setAuthMode('signin');
+      $('admin-email').value=email;
+      sayAuth(authError(error),'error');
+    }else{
+      sayAuth(authError(error),'error');
+    }
+  }finally{
+    submit.disabled=false;
   }
 }
 
@@ -59,6 +94,7 @@ async function loggedIn(user){
       return;
     }
     $('admin-resend').hidden=true;
+    await user.getIdToken(true);
     await ensureAdmin();
     ownerConfirmed=true;
     await initializeStore();
@@ -66,7 +102,7 @@ async function loggedIn(user){
     draw();
   }catch(error){
     ownerConfirmed=false;draw();
-    sayAuth(error.message||'Could not verify administrator access.','error');
+    sayAuth(authError(error),'error');
   }
 }
 
@@ -76,7 +112,7 @@ $('admin-resend').addEventListener('click',async()=>{
     await sendEmailVerification(auth.currentUser,{url:`${location.origin}/admin.html?verified=1`,handleCodeInApp:false});
     sayAuth('A new verification link was sent to your email.','success');
   }catch(error){
-    sayAuth(error.message||'Could not resend the verification email.','error');
+    sayAuth(authError(error),'error');
   }
 });
 document.addEventListener('submit',event=>{if(event.target.id==='login-form')handleAuth(event)});document.addEventListener('click',event=>{const button=event.target.closest('[data-tab]');if(button){tab=button.dataset.tab;query='';window.editingProductId=null;draw()}});window.addEventListener('message',editWebsiteText);$('admin-logout').addEventListener('click',()=>signOut(auth).catch(error=>toast(error.message||'Could not sign out.','error')));$('admin-create').addEventListener('click',()=>setAuthMode('signup'));$('admin-forgot').addEventListener('click',()=>setAuthMode('reset'));$('admin-cancel').addEventListener('click',()=>setAuthMode('signin'));setAuthMode('signin');draw();onAuthStateChanged(auth,user=>loggedIn(user).catch(error=>{ownerConfirmed=false;draw();sayAuth(error.message||'Could not confirm administrator access.','error')}));

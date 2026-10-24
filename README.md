@@ -33,6 +33,8 @@ The Firebase web-app configuration in `firebase-client.js` is public application
 
 The admin dashboard supports email registration, email verification, sign-in and password reset. The current bootstrap policy grants administrator access to **every email-verified account**. That gives any person who registers and verifies an email full control of the catalogue, journal and site content. Restrict the bootstrap policy before opening the dashboard publicly if that is not intended.
 
+If Firebase reports invalid credentials, confirm the email and password or use the password-reset option. If the email is already registered, switch to sign-in and use the verification resend option if the account is not verified. Dashboard administration also requires the deployed Vercel API functions and `FIREBASE_SERVICE_ACCOUNT_JSON`; a static localhost server can display the login page but cannot grant admin access.
+
 Customers create or sign in to an account from the checkout page before proceeding to Paystack. The same email address is used to connect the paid order to the account. Email verification is required to link an order from the account page.
 
 ## Payments and receipts
