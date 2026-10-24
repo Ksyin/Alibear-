@@ -94,6 +94,14 @@
       }
     },
 
+    // ===== NEW: customer profiles (each signed-in user manages their own) =====
+    "customers": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true)"
+      }
+    },
+
     // ===== NEW: orders and enquiries =====
     "orders": {
       ".read": "auth != null && auth.token.admin === true",

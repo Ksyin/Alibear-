@@ -10,6 +10,10 @@ module.exports = {
   // Leave empty to let the FIRST account created on the admin page become the owner.
   ADMIN_EMAILS: '',
 
+  // true = ANY email account can open the admin dashboard (current setting).
+  // Set to false later to restrict the dashboard to ADMIN_EMAILS / the first account.
+  ADMIN_OPEN_ACCESS: true,
+
   // Leave empty: the site address is detected automatically (custom domain or *.vercel.app).
   PUBLIC_SITE_URL: '',
 

@@ -10,7 +10,7 @@ module.exports=async function(req,res){
     if(confirmation.action!=='claim')return json(res,400,{error:'Submit the administrator claim confirmation.'});
     const email=identity.email.toLowerCase();
     const allowlist=cfg('ADMIN_EMAILS').split(',').map(item=>item.trim().toLowerCase()).filter(Boolean);
-    let allowed=identity.admin===true||allowlist.includes(email);
+    let allowed=identity.admin===true||allowlist.includes(email)||cfg('ADMIN_OPEN_ACCESS')==='true'||cfg('ADMIN_OPEN_ACCESS')==='1';
     if(!allowed){
       // First account ever created on the dashboard becomes the owner.
       const existing=await database().ref('admins').limitToFirst(1).get();
