@@ -114,3 +114,5 @@ module.exports = async function (req, res) {
 };
 
 module.exports.config = { api: { bodyParser: false } };
+// Paystack signs the raw body, so Vercel's JSON body parser must be off.
+module.exports.config = { api: { bodyParser: false } };

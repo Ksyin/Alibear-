@@ -16,14 +16,15 @@ function authError(error){
     'auth/too-many-requests':'Too many attempts. Wait a few minutes and try again.',
     'auth/network-request-failed':'Could not connect to Firebase. Check your internet connection and try again.',
     'auth/operation-not-allowed':'Email and password sign-in is not enabled in Firebase Authentication.',
-    'auth/unauthorized-domain':'This website domain is not authorized in Firebase Authentication settings.'
+    'auth/unauthorized-domain':'This website domain is not authorized in Firebase Authentication settings.',
+    'auth/unauthorized-continue-uri':'Verification email could not be sent: add this site domain in Firebase Console > Authentication > Settings > Authorized domains. Your account still works.'
   };
   if(error?.message==='The service returned an invalid response.'||error?.name==='TypeError'&&/fetch/i.test(error.message||'')){
     return 'Firebase sign-in may have succeeded, but the admin service could not be reached. Deploy this site on Vercel and configure its Firebase Admin environment variables.';
   }
   return messages[error?.code]||error?.message||'Could not complete this account request. Try again or reset your password.';
 }
-function setAuthMode(mode){authMode=mode;$('auth-heading').textContent={signin:'Welcome back',signup:'Create your Alibear Automation account',reset:'Reset your password'}[mode];$('auth-description').textContent={signin:'Sign in to manage Alibear Automation.',signup:'Register with any email address. Verify it to access the store dashboard.',reset:'Enter your email to receive a secure reset link.'}[mode];$('admin-name-label').hidden=mode!=='signup';$('admin-name').hidden=mode!=='signup';$('admin-name').required=mode==='signup';$('admin-password').hidden=mode==='reset';$('admin-password').required=mode!=='reset';$('admin-password').minLength=mode==='signup'?8:1;$('admin-password').autocomplete=mode==='signin'?'current-password':'new-password';$('admin-auth-submit').textContent={signin:'Sign in to dashboard →',signup:'Create account →',reset:'Send reset link →'}[mode];$('admin-create').hidden=mode==='reset'||mode==='signup';$('admin-forgot').hidden=mode!=='signin';$('admin-cancel').hidden=mode==='signin';sayAuth('')}
+function setAuthMode(mode){authMode=mode;$('auth-heading').textContent={signin:'Welcome back',signup:'Create your Alibear Automation account',reset:'Reset your password'}[mode];$('auth-description').textContent={signin:'Sign in to manage Alibear Automation.',signup:'Create your account. The first account becomes the store owner.',reset:'Enter your email to receive a secure reset link.'}[mode];$('admin-name-label').hidden=mode!=='signup';$('admin-name').hidden=mode!=='signup';$('admin-name').required=mode==='signup';$('admin-password').hidden=mode==='reset';$('admin-password').required=mode!=='reset';$('admin-password').minLength=mode==='signup'?8:1;$('admin-password').autocomplete=mode==='signin'?'current-password':'new-password';$('admin-auth-submit').textContent={signin:'Sign in to dashboard →',signup:'Create account →',reset:'Send reset link →'}[mode];$('admin-create').hidden=mode==='reset'||mode==='signup';$('admin-forgot').hidden=mode!=='signin';$('admin-cancel').hidden=mode==='signin';sayAuth('')}
 async function initializeStore(){const result=await get(ref(database,'products'));if(!result.exists()){const catalog=Object.fromEntries(products().map((product,index)=>[String(product.id||Date.now()+index),product]));await update(ref(database),{products:catalog})}const articleSnapshot=await get(ref(database,'journal'));if(!articleSnapshot.exists()){const defaultJournal=Array.isArray(D.journal)?D.journal:Store.load().journal;const articles=Object.fromEntries(defaultJournal.map((item,index)=>[String(item.id||`article-${index}`),item]));await update(ref(database),{journal:articles})}}
 async function loadPrivateStoreData(){for(const[path,callback]of[['orders',value=>{orders=value||{};refreshVisibleTab()}],['contactRequests',value=>{contactRequests=value||{};refreshVisibleTab()}]])onValue(ref(database,path),snapshot=>callback(snapshot.val()))}
 function refreshVisibleTab(){if(tab==='Dashboard'||tab==='Enquiries')draw()}
@@ -62,11 +63,9 @@ async function handleAuth(event){
       const credential=await createUserWithEmailAndPassword(auth,email,password);
       await updateProfile(credential.user,{displayName});
       try{
-        await sendEmailVerification(credential.user,{url:`${location.origin}/admin.html?verified=1`,handleCodeInApp:false});
-        sayAuth('Account created. Check your inbox and verify your email before accessing the dashboard.','success');
+        await sendEmailVerification(credential.user);
       }catch(error){
-        $('admin-resend').hidden=false;
-        sayAuth(`Your account was created, but Firebase could not send the verification email. Use “Resend verification email” to try again. ${authError(error)}`,'error');
+        console.warn('Verification email not sent:',error?.code||error);
       }
       return;
     }
@@ -86,13 +85,9 @@ async function handleAuth(event){
 
 async function loggedIn(user){
   if(!user){ownerConfirmed=false;draw();$('admin-resend').hidden=true;return}
+  sayAuth('Checking administrator access…');
   try{
     await user.reload();
-    if(!user.emailVerified){
-      ownerConfirmed=false;draw();$('admin-email').value=user.email||'';$('admin-resend').hidden=false;
-      sayAuth('Verify your email using the link we sent before opening the dashboard.','error');
-      return;
-    }
     $('admin-resend').hidden=true;
     await user.getIdToken(true);
     await ensureAdmin();
@@ -103,13 +98,14 @@ async function loggedIn(user){
   }catch(error){
     ownerConfirmed=false;draw();
     sayAuth(authError(error),'error');
+    if(/shopper account/i.test(error?.message||''))signOut(auth).catch(()=>{});
   }
 }
 
 $('admin-resend').addEventListener('click',async()=>{
   if(!auth.currentUser)return sayAuth('Create an account or sign in before requesting verification.','error');
   try{
-    await sendEmailVerification(auth.currentUser,{url:`${location.origin}/admin.html?verified=1`,handleCodeInApp:false});
+    await sendEmailVerification(auth.currentUser);
     sayAuth('A new verification link was sent to your email.','success');
   }catch(error){
     sayAuth(authError(error),'error');

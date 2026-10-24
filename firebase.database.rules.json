@@ -1,25 +1,31 @@
 {
   "rules": {
-    ".read": false,
-    ".write": false,
     "users": {
+      // Allow any authenticated client (including anonymous from ESP32)
+      // to read/write anywhere under /users – this is needed for the device
       ".read": "auth != null && auth.uid != null",
       ".write": "auth != null && auth.uid != null",
+
       "$email": {
+        // Strict rule for real app users (logged in with email)
         ".read": "auth != null && auth.token.email != null && auth.token.email.replace('.', '_').replace('@', '_') === $email",
         ".write": "auth != null && auth.token.email != null && auth.token.email.replace('.', '_').replace('@', '_') === $email",
+
         "linked_boards": {
           "$boardId": {
             ".read": "auth != null",
             ".write": "auth != null"
           }
         },
+
         "Aquarium": {
           ".read": "auth != null",
           ".write": "auth != null",
+
           "$device": {
             ".read": "auth != null",
             ".write": "auth != null",
+
             "switch_state": {
               ".validate": "newData.isString() && (newData.val() === 'ON' || newData.val() === 'OFF')"
             },
@@ -34,9 +40,12 @@
             }
           }
         },
+
+        // This covers other systems like "Rooms", "water_tank", etc.
         "$system": {
           ".read": "auth != null",
           ".write": "auth != null",
+
           "_device_status": {
             ".read": "auth != null",
             ".write": "auth != null"
@@ -62,36 +71,40 @@
         }
       }
     },
-    "products": {
-      ".read": true,
-      ".write": "auth != null && auth.token.admin === true"
-    },
-    "journal": {
-      ".read": true,
-      ".write": "auth != null && auth.token.admin === true"
-    },
-    "siteContent": {
-      "$page": {
-        ".read": true,
-        ".write": "auth != null && auth.token.admin === true"
-      }
-    },
+
+    // ===== NEW: storefront, public read, admin-only write (admin panel) =====
+    "products":     { ".read": true, ".write": "auth != null && auth.token.admin === true" },
+    "journal":      { ".read": true, ".write": "auth != null && auth.token.admin === true" },
+    "siteContent":  { ".read": true, ".write": "auth != null && auth.token.admin === true" },
+    "settings":     { ".read": true, ".write": "auth != null && auth.token.admin === true" },
+    "categories":   { ".read": true, ".write": "auth != null && auth.token.admin === true" },
+    "banners":      { ".read": true, ".write": "auth != null && auth.token.admin === true" },
+    "navigation":   { ".read": true, ".write": "auth != null && auth.token.admin === true" },
+    "pages":        { ".read": true, ".write": "auth != null && auth.token.admin === true" },
+    "deals":        { ".read": true, ".write": "auth != null && auth.token.admin === true" },
+    "faqs":         { ".read": true, ".write": "auth != null && auth.token.admin === true" },
+    "testimonials": { ".read": true, ".write": "auth != null && auth.token.admin === true" },
+    "media":        { ".read": true, ".write": "auth != null && auth.token.admin === true" },
+
+    // ===== NEW: admin records (written only by the server) =====
     "admins": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
         ".write": false
       }
     },
+
+    // ===== NEW: orders and enquiries =====
     "orders": {
       ".read": "auth != null && auth.token.admin === true",
       "$orderId": {
         ".read": "auth != null && (auth.token.admin === true || auth.uid === data.child('customerUid').val())",
-        ".write": false
+        ".write": "auth != null && auth.token.admin === true"
       }
     },
     "contactRequests": {
       ".read": "auth != null && auth.token.admin === true",
-      ".write": false
+      ".write": "auth != null && auth.token.admin === true"
     }
   }
 }

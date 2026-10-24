@@ -16,22 +16,27 @@ A Vercel storefront using Firebase Realtime Database and Authentication, Cloudin
 - Account-first checkout: `/checkout.html`
 - Store dashboard: `/admin.html`
 
-## Vercel setup
+## Project layout
 
-1. Import the project into Vercel with the repository root as the deployment root. `vercel.json` builds the root-level browser assets and deploys the root-level API handlers as Vercel Functions.
-2. Set the variables in `.env.example` in Vercel Project Settings. Keep `FIREBASE_SERVICE_ACCOUNT_JSON`, `PAYSTACK_SECRET_KEY`, Cloudinary secrets and email-provider credentials in Vercel environment settings only.
-3. Configure `PUBLIC_SITE_URL` with the exact HTTPS origin of the deployed storefront and configure `FIREBASE_DATABASE_URL` for the Realtime Database.
-4. Enable Email/Password sign-in in Firebase Authentication and add the deployed domain to its authorized domains.
-5. Publish `firebase.database.rules.json` in Firebase Console > Realtime Database > Rules.
-6. Configure Cloudinary's API key and secret before enabling product-image uploads.
-7. Configure `RESEND_FROM` with an address on a verified sending domain and add `RESEND_API_KEY` to enable order receipts.
-8. In Paystack Dashboard > Settings > Webhooks, register `https://your-store-domain/api/paystack-webhook` so paid orders are confirmed even if the customer closes the checkout page before returning to the store.
+Everything is in the repo root, no subfolders: HTML pages, `style.css` and browser JS (static), plus the serverless handlers (`bootstrap-admin.js`, `cloudinary-sign.js`, `contact-message.js`, `link-order.js`, `paystack-*.js`, shared `_lib.js`) that `vercel.json` routes to `/api/<name>`.
+
+## Deploy
+
+1. Push this folder to GitHub (all files at the repo root).
+2. Vercel > Add New Project > import the repo. Framework preset **Other**, leave Build Command and Output Directory empty. Vercel installs `firebase-admin` automatically.
+3. Add the variables from `.env.example` in Vercel > Settings > Environment Variables (all environments), then redeploy.
+4. Firebase Console > Authentication > Sign-in method: enable Email/Password. Under Settings > Authorized domains add `localhost`, your production domain **and** your `*.vercel.app` domain (Vercel preview URLs change per deploy, so test on the production domain). This is what fixes `auth/unauthorized-continue-uri`.
+5. Publish `firebase.database.rules.json` in Realtime Database > Rules.
+6. Paystack Dashboard > Settings > Webhooks: `https://your-domain/api/paystack-webhook`.
+7. Cloudinary keys and `RESEND_*` are optional until you use uploads and receipts.
+
+Every `git push` to the main branch redeploys automatically.
 
 The Firebase web-app configuration in `firebase-client.js` is public application configuration. Restrict its API key to the deployed site domains in Google Cloud/Firebase settings.
 
 ## Accounts and administration
 
-The admin dashboard supports email registration, email verification, sign-in and password reset. The current bootstrap policy grants administrator access to **every email-verified account**. That gives any person who registers and verifies an email full control of the catalogue, journal and site content. Restrict the bootstrap policy before opening the dashboard publicly if that is not intended.
+The dashboard supports email sign-up, sign-in and password reset. Email verification is optional and never blocks login. The **first account created becomes the store owner**; afterwards only emails listed in `ADMIN_EMAILS` (Vercel env, comma-separated) can become administrators. Everyone else is a shopper account (`/account.html`, `/checkout.html`) and gets a clear message on the admin page. Verification emails need your domain under Firebase Console > Authentication > Settings > Authorized domains; until then sign-up still works.
 
 If Firebase reports invalid credentials, confirm the email and password or use the password-reset option. If the email is already registered, switch to sign-in and use the verification resend option if the account is not verified. Dashboard administration also requires the deployed Vercel API functions and `FIREBASE_SERVICE_ACCOUNT_JSON`; a static localhost server can display the login page but cannot grant admin access.
 

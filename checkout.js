@@ -115,10 +115,11 @@ async function authenticateCustomer(email, password, name) {
   }
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(credential.user, { displayName: name });
-  await sendEmailVerification(credential.user, {
-    url: `${location.origin}/account.html`,
-    handleCodeInApp: false
-  });
+  try {
+    await sendEmailVerification(credential.user);
+  } catch (error) {
+    console.warn('Verification email not sent:', error?.code || error);
+  }
   return credential.user;
 }
 

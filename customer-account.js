@@ -17,6 +17,22 @@ const params = new URLSearchParams(location.search);
 const orderId = params.get('order');
 let mode = 'signup';
 
+function friendlyAuthError(error) {
+  const known = {
+    'auth/email-already-in-use': 'An account already exists for this email. Use Sign in or Reset password.',
+    'auth/invalid-credential': 'Wrong email or password. Try again or reset your password.',
+    'auth/invalid-login-credentials': 'Wrong email or password. Try again or reset your password.',
+    'auth/user-not-found': 'No account exists for this email. Create an account first.',
+    'auth/wrong-password': 'Wrong password. Try again or reset your password.',
+    'auth/invalid-email': 'Enter a valid email address.',
+    'auth/weak-password': 'Use at least eight characters for your password.',
+    'auth/too-many-requests': 'Too many attempts. Wait a few minutes and try again.',
+    'auth/network-request-failed': 'Could not reach Firebase. Check your connection.',
+    'auth/unauthorized-domain': 'This site domain is not authorized in Firebase Authentication settings.'
+  };
+  return known[error?.code] || error?.message || 'Could not complete this account request.';
+}
+
 function feedback(message, tone = 'info') {
   const target = $('account-feedback');
   if (!target) return;
@@ -87,13 +103,16 @@ async function submit(event) {
 
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(credential.user, { displayName: name });
-    await sendEmailVerification(credential.user, {
-      url: `${location.origin}/account.html${orderId ? `?order=${encodeURIComponent(orderId)}&paid=1` : ''}`,
-      handleCodeInApp: false
-    });
-    feedback('Account created. Check your inbox and verify your email before linking a paid order.', 'success');
+    let note = 'Account created. You are signed in.';
+    try {
+      await sendEmailVerification(credential.user);
+      note += ' Check your inbox to verify your email before linking a paid order.';
+    } catch (error) {
+      note += ' We could not send the verification email right now; use the resend button later.';
+    }
+    feedback(note, 'success');
   } catch (error) {
-    feedback(error.message || 'Could not complete this account request.', 'error');
+    feedback(friendlyAuthError(error), 'error');
   }
 }
 
@@ -130,13 +149,10 @@ async function resendVerification() {
     return;
   }
   try {
-    await sendEmailVerification(user, {
-      url: `${location.origin}/account.html${orderId ? `?order=${encodeURIComponent(orderId)}&paid=1` : ''}`,
-      handleCodeInApp: false
-    });
+    await sendEmailVerification(user);
     feedback('A new email verification link has been sent.', 'success');
   } catch (error) {
-    feedback(error.message || 'Could not resend the verification email.', 'error');
+    feedback(friendlyAuthError(error), 'error');
   }
 }
 

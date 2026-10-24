@@ -45,7 +45,8 @@ function requireSameOrigin(req) {
   if (!origin) return;
   const allowed = process.env.PUBLIC_SITE_URL;
   if (allowed && new URL(origin).origin === new URL(allowed).origin) return;
-  if (!allowed && req.headers.host && new URL(origin).host === req.headers.host) return;
+  // Same host as the deployment (custom domain, *.vercel.app or preview URL).
+  if (req.headers.host && new URL(origin).host === req.headers.host) return;
   throw new Error('Cross-origin requests are not allowed.');
 }
 

@@ -549,3 +549,21 @@ footer{margin-top:70px;padding:48px 0 18px;background:#17283f;color:#e1e5e7}
 .checkout-back-link{display:inline-block;margin-top:20px;color:#72551a;font-size:11px;font-weight:700}
 .checkout-summary .empty-state{color:#747a7e;font-size:11px}
 @media(max-width:720px){.checkout-layout{grid-template-columns:1fr;gap:24px;padding-top:35px;padding-bottom:48px}.checkout-main h1{font-size:38px}.checkout-summary{order:-1;padding:19px}.checkout-tabs button{flex:1;padding-right:6px;padding-left:6px;font-size:10px}}
+
+/* Admin login: buttons and feedback */
+.admin-login .auth-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.admin-login .auth-actions button{font:inherit;font-size:12px;font-weight:650;cursor:pointer;border-radius:6px;padding:10px 16px;transition:.2s}
+.admin-login .auth-actions button[hidden]{display:none}
+.admin-login #admin-create{flex:1 1 auto;border:1.5px solid #17283f;background:transparent;color:#17283f}
+.admin-login #admin-create:hover{background:#17283f;color:#f5cf73}
+.admin-login #admin-cancel{flex:1 1 auto;border:1.5px solid #17283f;background:transparent;color:#17283f}
+.admin-login #admin-cancel:hover{background:#17283f;color:#f5cf73}
+.admin-login #admin-forgot,.admin-login #admin-resend{border:0;background:none;color:#8a6a1c;padding:10px 4px;text-decoration:underline;text-underline-offset:3px}
+.admin-login #admin-forgot:hover,.admin-login #admin-resend:hover{color:#17283f}
+.admin-login #admin-auth-submit{align-self:stretch;width:100%;padding:13px 20px;font-size:13px}
+.admin-login .auth-feedback{min-height:18px;margin-top:12px;padding:0;font-size:12px;line-height:1.5;color:#5c6165}
+.admin-login .auth-feedback:not(:empty){padding:9px 12px;border-radius:5px;background:#f3f1ea}
+.admin-login .auth-feedback[data-tone=error]{background:#fdecea;color:#9b2c20}
+.admin-login .auth-feedback[data-tone=success]{background:#e8f5ec;color:#1f6b3a}
+.admin-login input:focus{outline:2px solid #f5cf73;border-color:#d4a017;background:#fff}
+@media(prefers-color-scheme:dark){.admin-login #admin-create,.admin-login #admin-cancel{border-color:#f5cf73;color:#f5cf73}.admin-login #admin-create:hover,.admin-login #admin-cancel:hover{background:#f5cf73;color:#17283f}.admin-login #admin-forgot,.admin-login #admin-resend{color:#f5cf73}}
