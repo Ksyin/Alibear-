@@ -149,8 +149,8 @@ async function resendVerification() {
     return;
   }
   try {
-    await sendEmailVerification(user);
-    feedback('A new email verification link has been sent.', 'success');
+    const sent = await sendEmailVerification(user);
+    feedback(sent ? 'A new email verification link has been sent.' : 'Email could not be sent until this domain is added to Firebase Authentication > Settings > Authorized domains. You can still use your account.', sent ? 'success' : 'error');
   } catch (error) {
     feedback(friendlyAuthError(error), 'error');
   }

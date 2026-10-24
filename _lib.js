@@ -1,6 +1,11 @@
 const admin = require('firebase-admin');
 
 function database() {
+  initAdmin();
+  return admin.database();
+}
+
+function initAdmin() {
   if (!admin.apps.length) {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is missing.');
@@ -17,7 +22,6 @@ function database() {
       databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://alibearautomation-b95ab-default-rtdb.firebaseio.com'
     });
   }
-  return admin.database();
 }
 
 function json(res, status, payload) {
@@ -53,10 +57,13 @@ function requireSameOrigin(req) {
 async function user(req) {
   const header = req.headers.authorization || '';
   if (!header.startsWith('Bearer ')) throw new Error('Sign in to continue.');
+  initAdmin();
   try {
     return await admin.auth().verifyIdToken(header.slice(7));
-  } catch {
-    throw new Error('Your session has expired. Please sign in again.');
+  } catch (error) {
+    console.error('verifyIdToken failed:', error.code || error.message);
+    if (error.code === 'auth/id-token-expired') throw new Error('Your session has expired. Please sign in again.');
+    throw new Error('Could not verify your sign-in. Check that FIREBASE_SERVICE_ACCOUNT_JSON in Vercel belongs to the same Firebase project (alibearautomation-b95ab).');
   }
 }
 

@@ -105,8 +105,8 @@ async function loggedIn(user){
 $('admin-resend').addEventListener('click',async()=>{
   if(!auth.currentUser)return sayAuth('Create an account or sign in before requesting verification.','error');
   try{
-    await sendEmailVerification(auth.currentUser);
-    sayAuth('A new verification link was sent to your email.','success');
+    const sent=await sendEmailVerification(auth.currentUser);
+    sayAuth(sent?'A new verification link was sent to your email.':'Email could not be sent until this domain is added to Firebase Authentication > Settings > Authorized domains. You can still use your account.',sent?'success':'error');
   }catch(error){
     sayAuth(authError(error),'error');
   }
