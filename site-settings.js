@@ -1,37 +1,15 @@
-import { database, ref, get, update } from './firebase-client.js';
+import{database,ref,onValue}from'/firebase-client.js';
 
-const root = document.documentElement;
-function applySettings(settings = {}) {
-  const theme = settings.theme || {};
-  if (theme.gold) root.style.setProperty('--g', theme.gold);
-  if (theme.goldLight) root.style.setProperty('--g2', theme.goldLight);
-  if (theme.navy) {
-    root.style.setProperty('--b1', theme.navy);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.navy);
-  }
-  if (theme.blue) root.style.setProperty('--b2', theme.blue);
-
-  const images = settings.images || {};
-  const map = [
-    ['homeHero', '.hero-visual'], ['shopHero', '.shop-page-hero .page-hero-art'], ['aboutHero', '.story-hero-art'],
-    ['homeEditorial', '.editorial-section > img'], ['featureBanner', '.feature-banner']
-  ];
-  map.forAdmin = undefined;
-  for (const [key, selector] of map) {
-    if (!images[key]) continue;
-    document.querySelectorAll(selector).forEach((element, index) => {
-      if (key === 'featureBanner') element.style.backgroundImage = `linear-gradient(90deg,rgba(6,18,58,.96),rgba(6,18,58,.65)),url("${images[key]}")`;
-      else if (element.tagName === 'IMG') element.src = images[key];
-      else element.style.backgroundImage = `url("${images[key]}")`;
-    });
-  }
-  ['slide1', 'slide2', 'slide3'].forEach((key, index) => {
-    const slides = document.querySelectorAll('.hero-visual .s');
-    if (images[key] && slides[index]) slides[index].style.backgroundImage = `url("${images[key]}")`;
-  });
+const defaults={theme:'#efb022',primary:'#17283f',logoText:'Alibear Automation',logoImage:'',heroImages:[]};
+function safeUrl(value){return typeof value==='string'&&/^(https?:\/\/|\/)/.test(value)}
+function apply(settings){
+  const theme=settings.theme||defaults.theme,primary=settings.primary||defaults.primary;
+  document.documentElement.style.setProperty('--g',theme);
+  document.documentElement.style.setProperty('--g2',theme);
+  document.documentElement.style.setProperty('--b1',primary);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content',primary);
+  if(safeUrl(settings.logoImage))document.querySelectorAll('.logo').forEach(logo=>{logo.innerHTML=`<img src="${settings.logoImage}" alt="${settings.logoText||defaults.logoText}" style="height:38px;width:auto;display:block;object-fit:contain">`;logo.classList.add('logo-image')});
+  if(settings.logoText)document.querySelectorAll('.logo:not(.logo-image)').forEach(logo=>{const parts=settings.logoText.trim().split(/\s+/);logo.innerHTML=`${parts.shift()}<span>${parts.join(' ')}</span>`});
+  if(Array.isArray(settings.heroImages)&&settings.heroImages.length){document.querySelectorAll('.hero-home #sl .s').forEach((slide,index)=>{if(safeUrl(settings.heroImages[index]))slide.style.backgroundImage=`url("${settings.heroImages[index]}")`});}
 }
-
-get(ref(database, 'siteSettings')).then(snapshot => applySettings(snapshot.val() || {})).catch(() => {});
-window.saveSiteSettings = async function (settings) {
-  await update(ref(database, 'siteSettings'), settings);
-};
+onValue(ref(database,'siteSettings'),snapshot=>apply({...defaults,...(snapshot.val()||{})}));
