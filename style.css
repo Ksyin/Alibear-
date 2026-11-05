@@ -285,7 +285,7 @@ body{background:#faf9f6;color:var(--t);line-height:1.6}
 .contact-map{margin-top:auto;padding-top:12px;border-top:1px solid #dad8d0;color:#785b21;font-size:11px;font-weight:700}
 .contact-extras{margin-top:55px}
 footer{margin-top:70px;padding:48px 0 18px;background:#17283f;color:#e1e5e7}
-.footer-grid{display:grid;grid-template-columns:1.25fr .75fr .8fr .95fr 1.1fr;gap:25px}
+.footer-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:25px}
 .footer-grid .logo{display:inline-block;margin-bottom:11px}
 .footer-grid p,.footer-grid small{color:#b6bec4;font-size:11px;line-height:1.75}
 .footer-grid h4{margin-bottom:11px;color:#f1c363;font-size:10px;letter-spacing:.12em;text-transform:uppercase}
@@ -589,6 +589,7 @@ footer{margin-top:70px;padding:48px 0 18px;background:#17283f;color:#e1e5e7}
 /* In-page editing tools (inside the preview frame) */
 .ed-hover{outline:2px dashed #2b7fff!important;outline-offset:2px}
 @media(max-width:700px){.hero-home{grid-template-columns:1fr;padding-left:0;padding-right:0}.hero-home .hero-copy{padding:38px 14px 28px}.hero-home .hero-visual{min-height:380px;width:100%;border-radius:0}.homepage-search{flex-direction:column;gap:8px;box-shadow:none}.homepage-search input,.homepage-search .btn{width:100%;border-radius:8px}.site-header .sr{order:3;flex-basis:100%;min-width:0}.site-header .sr button{display:none}.site-header .sr input{border-radius:999px;padding:10px 14px}.shop-page-hero .page-hero-art{width:100%;height:220px}}
+.site-header .hd{position:relative}.site-header .hd>.logo{position:absolute;left:50%;transform:translateX(-50%);z-index:1;margin:0}.site-header .sr{max-width:360px;margin-right:auto}.footer-brand{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:38px}.footer-brand .logo{margin-bottom:8px}.footer-brand p{max-width:620px}@media(max-width:720px){.site-header .hd>.logo{position:absolute;left:50%;transform:translateX(-50%);font-size:20px}.site-header .hd .menu-toggle{z-index:2}.site-header .hd .sr{flex-basis:100%!important;max-width:none;margin-right:0}.footer-brand{margin-bottom:28px}.footer-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.footer-grid>div:first-child{grid-column:auto}}
 .ed-selected{outline:3px solid #2b7fff!important;outline-offset:2px}
 .ed-hidden{opacity:.35!important;outline:2px dashed #c0392b!important}
 .ed-tools{position:absolute;z-index:99999;display:flex;flex-wrap:wrap;gap:4px;max-width:92vw;padding:5px;background:#17283f;border-radius:7px;box-shadow:0 6px 20px #0005;font-family:system-ui,sans-serif}
