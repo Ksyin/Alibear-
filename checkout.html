@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#17283f">
   <title>Account and secure checkout | Alibear Automation</title>
   <link rel="stylesheet" href="/style.css">
-</head>
+<script type="module" src="/site-settings.js"></script></head>
 <body>
   <div id="site-header"></div>
   <main class="w checkout-layout">
@@ -28,7 +28,7 @@
         <input id="checkout-phone" name="phone" type="tel" autocomplete="tel" required placeholder="+254 7XX XXX XXX">
         <label id="checkout-password-label" for="checkout-password">Create a password</label>
         <input id="checkout-password" name="password" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters">
-        <button id="checkout-submit" class="btn gold checkout-submit" type="submit">Create account and continue to Paystack →</button>
+        <button id="checkout-submit" class="btn gold checkout-submit" type="submit">Create account and continue to Paystack â†’</button>
         <div id="checkout-feedback" class="checkout-feedback" role="status" aria-live="polite" hidden></div>
       </form>
       <p class="checkout-security">Paystack processes your payment securely. Your card or payment details are never stored on this website. New accounts receive an email verification link.</p>
@@ -36,10 +36,10 @@
     <aside class="checkout-summary">
       <span class="eyebrow">YOUR ORDER</span>
       <h2>Order summary</h2>
-      <div id="checkout-items" class="checkout-items"><p class="empty-state">Loading your cart…</p></div>
+      <div id="checkout-items" class="checkout-items"><p class="empty-state">Loading your cartâ€¦</p></div>
       <div class="checkout-total-row"><b>Total</b><strong id="checkout-total">KSh 0</strong></div>
-      <p class="checkout-payment-note">Secure payment by Paystack · KES</p>
-      <a class="checkout-back-link" href="/products.html">← Continue shopping</a>
+      <p class="checkout-payment-note">Secure payment by Paystack Â· KES</p>
+      <a class="checkout-back-link" href="/products.html">â† Continue shopping</a>
     </aside>
   </main>
   <div id="site-footer"></div>
