@@ -593,21 +593,3 @@ footer{margin-top:70px;padding:48px 0 18px;background:#17283f;color:#e1e5e7}
 .ed-tools button{border:0;border-radius:4px;padding:6px 10px;background:#2b3f5c;color:#fff;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
 .ed-tools button:hover{background:#f5cf73;color:#17283f}
 .content-editing .edit-mode-label{position:sticky;top:0}
-/* Shared header, homepage and footer branding */
-.hero-home{width:100%;max-width:none;padding:0;grid-template-columns:minmax(320px,.75fr) minmax(0,1.25fr);gap:0}
-.hero-home .hero-copy{padding-left:max(19px,calc((100vw - 1240px)/2));padding-right:54px}
-.hero-home .hero-visual{width:100%;height:min(620px,58vw);max-height:none;border-radius:0}
-footer .footer-grid>div:first-child{text-align:center}
-footer .footer-grid>div:first-child .logo{display:inline-flex;justify-content:center}
-@media(min-width:721px){
-  .site-header .hd{position:relative;display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
-  .site-header .hd>.logo{grid-column:2;text-align:center}
-  .site-header .hd>.sr{grid-column:3;justify-self:end;max-width:none}
-  .home-page .site-header .hd>.sr{min-width:42px;max-width:42px}.home-page .site-header .hd>.sr input{display:none}.home-page .site-header .hd>.sr button{width:42px;min-width:42px;height:42px;padding:0;border-radius:50%;font-size:0}.home-page .site-header .hd>.sr button::before{content:'⌕';font-size:20px}
-}
-@media(max-width:720px){
-  .site-header .hd{display:grid!important;grid-template-columns:38px 1fr 38px;position:relative}.site-header .hd>.logo{grid-column:2;text-align:center}.site-header .hd>.sr{grid-column:3;min-width:38px;max-width:38px;flex:none}.site-header .hd>.sr input{display:none}.site-header .hd>.sr button{width:38px;min-width:38px;height:38px;padding:0;font-size:0;border-radius:50%}.site-header .hd>.sr button::before{content:'⌕';font-size:18px}
-  .hero-home{grid-template-columns:1fr}.hero-home .hero-copy{padding:26px 19px 30px}.hero-home .hero-visual{height:clamp(300px,88vw,470px)}
-  .home-page .site-header .hd>.sr.search-open{position:absolute;z-index:3;right:0;left:38px;max-width:none;width:auto;background:#17283f}.home-page .site-header .hd>.sr.search-open input{display:block;width:100%}
-}
-.home-page .site-header .hd>.sr.search-open input{display:block}

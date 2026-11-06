@@ -3,7 +3,6 @@ const pageLinks=[
 ['Alibear Automation app','app-page.html'],['About us','about.html'],['Journal','blog.html'],['Contact','contact.html'],['My account','account.html']
 ];
 const currentPage=location.pathname.split('/').pop()||'index.html';
-document.body.classList.toggle('home-page',currentPage==='index.html'||currentPage==='');
 const header=document.getElementById('site-header');
 if(header)header.innerHTML=`<div class="top"><div class="ticker" aria-label="Shop with confidence: Nairobi delivery, Paystack payments, and product warranties"><div class="ticker-track"><span>FREE Nairobi delivery over KSh 5,000</span><span>Secure Paystack checkout</span><span>Professional installation</span><span>Genuine products with warranty</span><span>FREE Nairobi delivery over KSh 5,000</span><span>Secure Paystack checkout</span><span>Professional installation</span><span>Genuine products with warranty</span></div></div></div>
 <header class="site-header"><div class="hd w"><button class="menu-toggle" id="menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-nav"><span></span><span></span><span></span></button><a href="/index.html" class="logo" aria-label="Alibear Automation home">Alibear<span>Automation</span></a><form class="sr" onsubmit="S(event)"><input id="q" aria-label="Search products" placeholder="Search smart locks, cameras, systems…"><button class="btn gold">Search</button></form><a class="header-help" href="/contact.html">Help</a><button class="i" type="button" onclick="C(1)" aria-label="Open shopping cart">🛒 <span class="cart-label">Cart</span> <span class="cnt" id="cc">0</span></button></div><nav id="main-nav" class="main-nav" aria-label="Main navigation"><div class="w nav-links">${pageLinks.map(([label,url])=>`<a href="/${url}" ${currentPage===url?'aria-current="page"':''}>${label}</a>`).join('')}</div></nav></header><div class="nav-scrim" id="nav-scrim"></div>`;
@@ -21,7 +20,3 @@ function updateScroll(){const max=document.documentElement.scrollHeight-innerHei
 window.addEventListener('scroll',updateScroll,{passive:true});window.addEventListener('resize',updateScroll);backToTop?.addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));updateScroll();
 const revealObserver='IntersectionObserver'in window?new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('on');revealObserver.unobserve(entry.target)}}),{threshold:.08}):null;
 document.querySelectorAll('.rv').forEach(element=>revealObserver?revealObserver.observe(element):element.classList.add('on'));
-const searchForm=document.querySelector('.sr');
-if(searchForm&&document.body.classList.contains('home-page')){
-  searchForm.addEventListener('submit',event=>{if(!searchForm.classList.contains('search-open')){event.preventDefault();event.stopImmediatePropagation();searchForm.classList.add('search-open');searchForm.querySelector('input')?.focus()}},true);
-}
