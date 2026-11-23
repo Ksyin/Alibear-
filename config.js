@@ -4,7 +4,11 @@
 // Keep this repo PRIVATE: it contains secrets.
 module.exports = {
   // Firebase: the service account key is read from firebase-service-account.json in this repo.
-  FIREBASE_DATABASE_URL: 'https://alibearautomation-b95ab-default-rtdb.firebaseio.com',
+  FIREBASE_DATABASE_URL: 'https://alibear-2b06a-default-rtdb.firebaseio.com',
+
+  // Legacy Realtime Database secret for alibear-2b06a. The server uses it (over the REST API) whenever
+  // firebase-service-account.json still holds placeholders. Anyone with it bypasses all database rules.
+  FIREBASE_DATABASE_SECRET: 'vbQ1yay0ZTuCzYxzbdvZPZZrWQZFxrjRcf4flcza',
 
   // Comma-separated emails that may open the admin dashboard.
   // Leave empty to let the FIRST account created on the admin page become the owner.

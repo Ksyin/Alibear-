@@ -1,4 +1,4 @@
-import{auth,database,ref,get,onAuthStateChanged,signOut,ensureAdmin}from'/firebase-client.js';
+import{auth,database,ref,get,onAuthStateChanged,signOut,ensureAdmin,isAdmin}from'/firebase-client.js';
 const $=id=>document.getElementById(id);
 const PAGES=[['home','index.html','Home'],['products','products.html','Shop'],['product','product.html','Product page'],['deals','deals.html','Offers'],['how-it-works','how-it-works.html','How it works'],['app-page','app-page.html','App page'],['about','about.html','About'],['blog','blog.html','Journal'],['news','news.html','News'],['contact','contact.html','Contact'],['account','account.html','Customer account'],['checkout','checkout.html','Checkout']];
 const select=$('editor-page'),frame=$('editor-frame'),status=$('editor-status');
@@ -36,9 +36,8 @@ onAuthStateChanged(auth,async user=>{
   if(started)return;
   if(!user)return location.replace('/admin.html');
   try{
-    let token=await user.getIdTokenResult(true);
-    if(token.claims.admin!==true){await ensureAdmin();token=await user.getIdTokenResult(true)}
-    if(token.claims.admin!==true)throw new Error('not admin');
+    if(!(await isAdmin()))await ensureAdmin();
+    if(!(await isAdmin()))throw new Error('not admin');
   }catch{return location.replace('/admin.html')}
   started=true;
   open(select.value);

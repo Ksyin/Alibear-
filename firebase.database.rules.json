@@ -1,118 +1,146 @@
 {
   "rules": {
-    "users": {
-      // Allow any authenticated client (including anonymous from ESP32)
-      // to read/write anywhere under /users – this is needed for the device
-      ".read": "auth != null && auth.uid != null",
-      ".write": "auth != null && auth.uid != null",
+    ".read": false,
+    ".write": false,
 
-      "$email": {
-        // Strict rule for real app users (logged in with email)
-        ".read": "auth != null && auth.token.email != null && auth.token.email.replace('.', '_').replace('@', '_') === $email",
-        ".write": "auth != null && auth.token.email != null && auth.token.email.replace('.', '_').replace('@', '_') === $email",
-
-        "linked_boards": {
-          "$boardId": {
-            ".read": "auth != null",
-            ".write": "auth != null"
-          }
-        },
-
-        "Aquarium": {
-          ".read": "auth != null",
-          ".write": "auth != null",
-
-          "$device": {
-            ".read": "auth != null",
-            ".write": "auth != null",
-
-            "switch_state": {
-              ".validate": "newData.isString() && (newData.val() === 'ON' || newData.val() === 'OFF')"
-            },
-            "off_timer": {
-              ".validate": "newData.isNumber() && newData.val() > 0"
-            },
-            "schedule_on": {
-              ".validate": "newData.isNumber() && newData.val() > 0"
-            },
-            "schedule_off": {
-              ".validate": "newData.isNumber() && newData.val() > 0"
-            }
-          }
-        },
-
-        // This covers other systems like "Rooms", "water_tank", etc.
-        "$system": {
-          ".read": "auth != null",
-          ".write": "auth != null",
-
-          "_device_status": {
-            ".read": "auth != null",
-            ".write": "auth != null"
-          },
-          "_acknowledgments": {
-            ".read": "auth != null",
-            ".write": "auth != null"
-          },
-          "sensor_data": {
-            ".read": "auth != null",
-            ".write": "auth != null"
-          },
-          "metadata": {
-            ".read": "auth != null",
-            ".write": "auth != null"
-          },
-          "devices": {
-            "$device": {
-              ".read": "auth != null",
-              ".write": "auth != null"
-            }
-          }
+    // ===================== OWNER + ADMIN LIST (unchanged) =====================
+    "meta": {
+      "owner": {
+        ".read": true,
+        ".write": "auth != null && !data.exists() && newData.child('uid').val() === auth.uid",
+        ".validate": "newData.hasChildren(['uid', 'createdAt'])",
+        "uid": { ".validate": "newData.isString() && newData.val().length <= 128" },
+        "createdAt": { ".validate": "newData.isNumber() && newData.val() === now" },
+        "$other": { ".validate": false }
+      },
+      "admins": {
+        ".read": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())",
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())",
+          ".validate": "newData.hasChildren(['email', 'createdAt'])",
+          "email": { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "createdAt": { ".validate": "newData.isNumber() && newData.val() === now" },
+          "$other": { ".validate": false }
         }
       }
     },
 
-    // ===== NEW: storefront, public read, admin-only write (admin panel) =====
-    "products":     { ".read": true, ".write": "auth != null && auth.token.admin === true" },
-    "journal":      { ".read": true, ".write": "auth != null && auth.token.admin === true" },
-    "siteContent":  { ".read": true, ".write": "auth != null && auth.token.admin === true" },
-    "settings":     { ".read": true, ".write": "auth != null && auth.token.admin === true" },
-    "categories":   { ".read": true, ".write": "auth != null && auth.token.admin === true" },
-    "banners":      { ".read": true, ".write": "auth != null && auth.token.admin === true" },
-    "navigation":   { ".read": true, ".write": "auth != null && auth.token.admin === true" },
-    "pages":        { ".read": true, ".write": "auth != null && auth.token.admin === true" },
-    "deals":        { ".read": true, ".write": "auth != null && auth.token.admin === true" },
-    "faqs":         { ".read": true, ".write": "auth != null && auth.token.admin === true" },
-    "testimonials": { ".read": true, ".write": "auth != null && auth.token.admin === true" },
-    "media":        { ".read": true, ".write": "auth != null && auth.token.admin === true" },
-
-    // ===== NEW: admin records (written only by the server) =====
-    "admins": {
-      "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        ".write": false
+    // ===================== TRAINING / REGISTRATION SITE (unchanged) =====================
+    "site": {
+      "content": {
+        ".read": true,
+        ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())",
+        ".validate": "newData.hasChildren(['json', 'updatedAt'])",
+        "json": { ".validate": "newData.isString() && newData.val().length < 900000" },
+        "updatedAt": { ".validate": "newData.isNumber() && newData.val() === now" },
+        "$other": { ".validate": false }
       }
     },
 
-    // ===== NEW: customer profiles (each signed-in user manages their own) =====
+    "registrations": {
+      ".read": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())",
+      ".indexOn": ["createdAt"],
+
+      "$id": {
+        ".write": "(auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())) || (!data.exists() && newData.exists())",
+        ".validate": "newData.hasChildren(['name', 'phone', 'status', 'payment', 'createdAt'])",
+
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100" },
+        "phone": { ".validate": "newData.isString() && newData.val().length >= 7 && newData.val().length <= 20" },
+        "business": { ".validate": "newData.isString() && newData.val().length <= 100" },
+        "source": { ".validate": "newData.isString() && newData.val().length <= 30" },
+        "notes": { ".validate": "newData.isString() && newData.val().length <= 500" },
+
+        "status": {
+          ".validate": "(data.exists() || newData.val() === 'new') && (newData.val() === 'new' || newData.val() === 'contacted' || newData.val() === 'confirmed' || newData.val() === 'cancelled')"
+        },
+        "payment": {
+          ".validate": "(data.exists() || newData.val() === 'unpaid') && (newData.val() === 'unpaid' || newData.val() === 'reg_paid' || newData.val() === 'full_paid')"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && (data.exists() ? newData.val() === data.val() : newData.val() === now)"
+        },
+
+        "$other": { ".validate": false }
+      }
+    },
+
+    // ===================== STOREFRONT: public read, owner/admin can change ANYTHING =====================
+    // Product / journal / banner / logo / gallery images are Cloudinary URLs stored inside these nodes
+    // (products, journal, settings/site, siteContent, media, gallery, images, banners, partners).
+    "products": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "journal": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "siteContent": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "settings": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "siteSettings": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "categories": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "banners": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "navigation": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "pages": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "deals": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "faqs": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "testimonials": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "media": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "gallery": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "images": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "partners": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+
+    // ===================== ORDERS, CUSTOMERS, ENQUIRIES =====================
+    // Orders and payment lookups are written by the server (Paystack / M-Pesa handlers).
+    "orders": {
+      ".read": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())",
+      ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())",
+      "$orderId": {
+        ".read": "auth != null && (auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists()) || auth.uid === data.child('customerUid').val())"
+      }
+    },
     "customers": {
       "$uid": {
-        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
-        ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true)"
+        ".read": "auth != null && (auth.uid === $uid || auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists()))",
+        ".write": "auth != null && (auth.uid === $uid || auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists()))"
       }
     },
+    "contactRequests":  { ".read": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())", ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "contactLimits":    { ".read": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())", ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "checkoutLimits":   { ".read": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())", ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+    "paymentLookups":   { ".read": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())", ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
 
-    // ===== NEW: orders and enquiries =====
-    "orders": {
-      ".read": "auth != null && auth.token.admin === true",
-      "$orderId": {
-        ".read": "auth != null && (auth.token.admin === true || auth.uid === data.child('customerUid').val())",
-        ".write": "auth != null && auth.token.admin === true"
+    // ===================== SMART-HOME APP + ESP32 DEVICES =====================
+    // Kept from the previous rules file so the smart-home app keeps working.
+    "users": {
+      ".read": "auth != null && auth.uid != null",
+      ".write": "auth != null && auth.uid != null",
+
+      "$email": {
+        ".read": "auth != null && auth.token.email != null && auth.token.email.replace('.', '_').replace('@', '_') === $email",
+        ".write": "auth != null && auth.token.email != null && auth.token.email.replace('.', '_').replace('@', '_') === $email",
+
+        "linked_boards": { "$boardId": { ".read": "auth != null", ".write": "auth != null" } },
+
+        "Aquarium": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "$device": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            "switch_state": { ".validate": "newData.isString() && (newData.val() === 'ON' || newData.val() === 'OFF')" },
+            "off_timer": { ".validate": "newData.isNumber() && newData.val() > 0" },
+            "schedule_on": { ".validate": "newData.isNumber() && newData.val() > 0" },
+            "schedule_off": { ".validate": "newData.isNumber() && newData.val() > 0" }
+          }
+        },
+
+        "$system": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "_device_status": { ".read": "auth != null", ".write": "auth != null" },
+          "_acknowledgments": { ".read": "auth != null", ".write": "auth != null" },
+          "sensor_data": { ".read": "auth != null", ".write": "auth != null" },
+          "metadata": { ".read": "auth != null", ".write": "auth != null" },
+          "devices": { "$device": { ".read": "auth != null", ".write": "auth != null" } }
+        }
       }
-    },
-    "contactRequests": {
-      ".read": "auth != null && auth.token.admin === true",
-      ".write": "auth != null && auth.token.admin === true"
     }
   }
 }

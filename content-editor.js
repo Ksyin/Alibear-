@@ -1,4 +1,4 @@
-import{auth,database,ref,get,update,onAuthStateChanged,authenticatedRequest}from'/firebase-client.js';
+import{auth,database,ref,get,update,onAuthStateChanged,authenticatedRequest,isAdmin}from'/firebase-client.js';
 
 const params=new URLSearchParams(location.search);
 const editing=params.get('edit')==='1';
@@ -196,8 +196,7 @@ if(!editing){
     if(enabled)return;
     if(!user){say('Sign in on the admin page to edit this website.');return}
     try{
-      const token=await user.getIdTokenResult();
-      if(token.claims.admin!==true){say('This account is not an administrator.');return}
+      if(!(await isAdmin())){say('This account is not an administrator.');return}
     }catch(error){say('Could not confirm administrator access.');return}
 
     enabled=true;
