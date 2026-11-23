@@ -137,8 +137,8 @@ async function loggedIn(user){
     await user.getIdToken(true);
     await ensureAdmin();
     ownerConfirmed=true;
-    await initializeStore();
-    if(!new URLSearchParams(location.search).has('dashboard')){location.replace('/editor.html');return}
+    if(!new URLSearchParams(location.search).has('dashboard')){location.replace('/index.html?edit=1');return}
+    try{await initializeStore()}catch(error){console.warn('Could not seed the starter catalogue:',error);toast('Could not load the catalogue: '+(error?.message||'check the database rules.'),'error')}
     await loadPrivateStoreData();
     draw();
   }catch(error){

@@ -1,4 +1,4 @@
-import{auth,database,ref,get,update,onAuthStateChanged,authenticatedRequest,isAdmin}from'/firebase-client.js';
+import{auth,database,ref,get,update,onAuthStateChanged,authenticatedRequest,isAdmin,adminStatus,signOut}from'/firebase-client.js';
 
 const params=new URLSearchParams(location.search);
 const editing=params.get('edit')==='1';
@@ -89,8 +89,29 @@ async function loadAndApply(){
   }catch(error){console.error('Could not load editable store content:',error)}
 }
 
+const EDIT_PAGES=[['index.html','Home'],['products.html','Shop'],['product.html','Product page'],['deals.html','Offers'],['how-it-works.html','How it works'],['app-page.html','App page'],['about.html','About'],['blog.html','Journal'],['news.html','News'],['contact.html','Contact'],['account.html','Customer account']];
+function floatingBar(html){
+  const bar=document.createElement('div');
+  bar.id='ed-topbar';
+  bar.style.cssText='position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:100000;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;max-width:94vw;padding:8px 10px;background:#17283f;color:#fff;border-radius:999px;box-shadow:0 8px 28px #0006;font:600 13px system-ui,sans-serif';
+  bar.innerHTML=html;
+  bar.querySelectorAll('a,button,select').forEach(el=>{el.style.cssText='border:0;border-radius:999px;padding:8px 14px;background:#2b3f5c;color:#fff;font:inherit;text-decoration:none;cursor:pointer'+(el.dataset.primary?';background:#f5cf73;color:#17283f':'')});
+  document.body.append(bar);
+  return bar;
+}
+async function firstProductId(){try{const value=(await get(ref(database,'products'))).val()||{};return Object.values(value)[0]?.id??1}catch{return 1}}
+
 if(!editing){
   loadAndApply();
+  // Signed-in administrators get an "Edit this page" button on the real website.
+  if(window.top===window)onAuthStateChanged(auth,async user=>{
+    if(!user||document.getElementById('ed-topbar'))return;
+    const check=await adminStatus();
+    if(!check.admin||document.getElementById('ed-topbar'))return;
+    const url=new URL(location.href);url.searchParams.set('edit','1');
+    const bar=floatingBar(`<a data-primary="1" href="${url.pathname}${url.search}">✏️ Edit this page</a><a href="/admin.html?dashboard=1">Dashboard</a>`);
+    bar.title='Visible to administrators only';
+  });
 }else{
   document.documentElement.classList.add('content-editing');
   const label=document.createElement('div');
@@ -196,7 +217,8 @@ if(!editing){
     if(enabled)return;
     if(!user){say('Sign in on the admin page to edit this website.');return}
     try{
-      if(!(await isAdmin())){say('This account is not an administrator.');return}
+      const check=await adminStatus();
+      if(!check.admin){say(check.reason||'This account is not an administrator.');return}
     }catch(error){say('Could not confirm administrator access.');return}
 
     enabled=true;
@@ -212,7 +234,7 @@ if(!editing){
     document.querySelectorAll('input[data-content-key-placeholder]').forEach(el=>el.classList.add('content-attribute-editable'));
 
     document.addEventListener('click',event=>{
-      if(tools.contains(event.target))return;
+      if(tools.contains(event.target)||event.target.closest('#ed-topbar'))return;
       const target=event.target;
       event.preventDefault();event.stopPropagation();
       const text=target.closest('[data-content-key]');
@@ -224,6 +246,20 @@ if(!editing){
     document.addEventListener('mouseover',event=>{if(tools.contains(event.target))return;mark(hovered,'ed-hover',false);hovered=event.target.closest('[data-content-key]')?null:event.target;mark(hovered,'ed-hover',true)});
     document.addEventListener('keydown',event=>{if(event.key==='Escape'){tools.style.display='none';selected?.classList.remove('ed-selected')}});
     say('Click any text to type. Click an image, button, section or link to change, hide or re-link it. Changes save automatically.');
+
+    // Editing the real site directly (not inside the editor preview): page switcher + exit/sign out.
+    if(window.top===window&&!document.getElementById('ed-topbar')){
+      const current=location.pathname.split('/').pop()||'index.html',file=current.endsWith('.html')?current:`${current||'index'}.html`;
+      const bar=floatingBar(`<label style="display:flex;align-items:center;gap:6px">Page <select id="ed-page">${EDIT_PAGES.map(([f,l])=>`<option value="${f}"${f===file||(f==='index.html'&&(current===''||current==='index'))?' selected':''}>${l}</option>`).join('')}</select></label><a data-primary="1" id="ed-live" href="${location.pathname}">Done · view live</a><a href="/admin.html?dashboard=1">Dashboard</a><button type="button" id="ed-out">Sign out</button>`);
+      bar.querySelector('#ed-page').addEventListener('change',async event=>{
+        const target=event.target.value;let query='edit=1';
+        if(target==='product.html')query=`id=${encodeURIComponent(await firstProductId())}&edit=1`;
+        location.href=`/${target}?${query}`;
+      });
+      bar.querySelector('#ed-out').addEventListener('click',()=>signOut(auth).finally(()=>location.replace('/admin.html')));
+      const live=new URL(location.href);live.searchParams.delete('edit');
+      bar.querySelector('#ed-live').href=live.pathname+live.search;
+    }
   }
   onAuthStateChanged(auth,enableEditing);
 }

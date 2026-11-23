@@ -1,4 +1,4 @@
-import{auth,database,ref,get,onAuthStateChanged,signOut,ensureAdmin,isAdmin}from'/firebase-client.js';
+import{auth,database,ref,get,onAuthStateChanged,signOut,ensureAdmin,isAdmin,adminStatus}from'/firebase-client.js';
 const $=id=>document.getElementById(id);
 const PAGES=[['home','index.html','Home'],['products','products.html','Shop'],['product','product.html','Product page'],['deals','deals.html','Offers'],['how-it-works','how-it-works.html','How it works'],['app-page','app-page.html','App page'],['about','about.html','About'],['blog','blog.html','Journal'],['news','news.html','News'],['contact','contact.html','Contact'],['account','account.html','Customer account'],['checkout','checkout.html','Checkout']];
 const select=$('editor-page'),frame=$('editor-frame'),status=$('editor-status');
@@ -35,10 +35,16 @@ let started=false;
 onAuthStateChanged(auth,async user=>{
   if(started)return;
   if(!user)return location.replace('/admin.html');
-  try{
-    if(!(await isAdmin()))await ensureAdmin();
-    if(!(await isAdmin()))throw new Error('not admin');
-  }catch{return location.replace('/admin.html')}
+  let check=await adminStatus();
+  if(!check.admin){
+    try{await ensureAdmin();check=await adminStatus()}catch(error){check={admin:false,reason:error?.message||check.reason}}
+  }
+  if(!check.admin){
+    status.textContent='Cannot open the editor: '+(check.reason||'not an administrator.');
+    status.style.color='#b42318';
+    frame.srcdoc='<p style="font:16px system-ui;padding:24px;max-width:560px">'+String(check.reason||'Not an administrator.').replace(/[<>&]/g,'')+'<br><br><a href="/admin.html" target="_top">Back to the admin sign-in</a></p>';
+    return;
+  }
   started=true;
   open(select.value);
 });
