@@ -103,21 +103,18 @@ async function firstProductId(){try{const value=(await get(ref(database,'product
 
 if(!editing){
   loadAndApply();
-  // Signed-in administrators get an "Edit this page" button on the real website.
-  if(window.top===window)onAuthStateChanged(auth,async user=>{
-    if(!user||document.getElementById('ed-topbar'))return;
-    const check=await adminStatus();
-    if(!check.admin||document.getElementById('ed-topbar'))return;
-    const url=new URL(location.href);url.searchParams.set('edit','1');
-    const bar=floatingBar(`<a data-primary="1" href="${url.pathname}${url.search}">✏️ Edit this page</a><a href="/admin.html?dashboard=1">Dashboard</a>`);
-    bar.title='Visible to administrators only';
-  });
 }else{
-  document.documentElement.classList.add('content-editing');
+  const inFrame=window.top!==window;
   const label=document.createElement('div');
+  label.style.display='none';
   label.className='edit-mode-label';
   label.textContent='Checking admin access…';
   document.body.prepend(label);
+  // Anyone who is not a signed-in administrator simply gets the normal website.
+  const leave=text=>{
+    if(inFrame){label.style.display='';label.textContent=text;try{parent.postMessage({type:'aurum-editor-status',text},location.origin)}catch{}return}
+    const clean=new URL(location.href);clean.searchParams.delete('edit');location.replace(clean.pathname+clean.search+clean.hash);
+  };
 
   const say=text=>{label.textContent=text;try{parent.postMessage({type:'aurum-editor-status',text},location.origin)}catch{}};
   const timers=new Map();
@@ -215,13 +212,15 @@ if(!editing){
   let enabled=false;
   async function enableEditing(user){
     if(enabled)return;
-    if(!user){say('Sign in on the admin page to edit this website.');return}
+    if(!user){leave('Sign in on the admin page to edit this website.');return}
     try{
       const check=await adminStatus();
-      if(!check.admin){say(check.reason||'This account is not an administrator.');return}
-    }catch(error){say('Could not confirm administrator access.');return}
+      if(!check.admin){leave(check.reason||'This account is not an administrator.');return}
+    }catch(error){leave('Could not confirm administrator access.');return}
 
     enabled=true;
+    document.documentElement.classList.add('content-editing');
+    label.style.display='';
     tools=document.createElement('div');tools.className='ed-tools';tools.style.display='none';document.body.append(tools);
     await loadAndApply();
 
