@@ -1,15 +1,18 @@
 import {
   auth,
   authenticatedRequest,
+  clearCart,
   createUserWithEmailAndPassword,
   database,
   get,
   onAuthStateChanged,
+  readLocalCart,
   ref,
   sendEmailVerification,
   set,
   signInWithEmailAndPassword,
   signOut,
+  syncCart,
   updateProfile
 } from './firebase-client.js';
 
@@ -17,13 +20,7 @@ const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const returnOrderId = params.get('order');
 const returnReference = params.get('reference') || params.get('trxref');
-const cart = (() => {
-  try {
-    return JSON.parse(sessionStorage.getItem('cart') || '[]');
-  } catch {
-    return [];
-  }
-})();
+let cart = readLocalCart();
 let mode = 'signup';
 let verifying = false;
 let profile = {};
@@ -104,7 +101,7 @@ async function verifyPayment(user) {
       body: JSON.stringify({ orderId: returnOrderId, reference: returnReference })
     });
     if (!result.paid) throw new Error('Paystack has not confirmed this payment.');
-    sessionStorage.removeItem('cart');
+    await clearCart();
     location.replace(`/account.html?order=${encodeURIComponent(result.orderId)}&paid=1`);
   } catch (error) {
     verifying = false;
@@ -205,6 +202,10 @@ onAuthStateChanged(auth, async user => {
     $('checkout-member-email').textContent = user.email || '';
     $('checkout-phone').value = $('checkout-phone').value || profile.phone || '';
     setMode('member');
+    if (!returnReference) {
+      cart = await syncCart(user, cart);
+      renderCart();
+    }
     verifyPayment(user);
   } else {
     profile = {};

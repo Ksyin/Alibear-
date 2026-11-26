@@ -758,3 +758,7 @@ body.admin-embed .admin-form-grid{grid-template-columns:1fr}
 .account-order small{color:#828689;word-break:break-all}
 .account-order-status{font-weight:700;text-transform:capitalize}
 .account-order-status[data-status=paid]{color:#355b3a}
+.account-basket .q{width:26px;height:26px;border:1px solid #d9d7cf;background:#fff;cursor:pointer}
+.account-cart-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px}
+.account-cart-foot[hidden]{display:none}
+.account-cart-foot .btn{margin:0}

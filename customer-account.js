@@ -5,6 +5,7 @@ import {
   database,
   get,
   onAuthStateChanged,
+  readLocalCart,
   ref,
   sendEmailVerification,
   sendPasswordResetEmail,
@@ -179,6 +180,29 @@ async function loadDashboard(user) {
   }
 }
 
+let catalog = null;
+async function renderBasket() {
+  const box = $('account-cart');
+  if (!catalog) {
+    try {
+      const snapshot = await get(ref(database, 'products'));
+      catalog = snapshot.exists() ? Object.values(snapshot.val()) : (Store.load().products || []);
+    } catch {
+      catalog = Store.load().products || [];
+    }
+    if (!Array.isArray(catalog)) catalog = Object.values(catalog);
+  }
+  const items = readLocalCart().map(row => {
+    const product = catalog.find(item => String(item.id) === String(row.id));
+    return product ? { ...product, quantity: row.q } : null;
+  }).filter(Boolean);
+  $('account-cart-foot').hidden = !items.length;
+  $('account-cart-total').textContent = K(items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0));
+  box.innerHTML = items.length
+    ? items.map(item => `<article class="account-order"><div class="account-order-top"><b>${esc(item.name)}</b><span>${K(Number(item.price) * item.quantity)}</span></div><div class="account-order-top"><span>${K(item.price)} each</span><span><button class="q" type="button" data-cart-id="${esc(item.id)}" data-cart-delta="-1" aria-label="Remove one ${esc(item.name)}">−</button> <b>${item.quantity}</b> <button class="q" type="button" data-cart-id="${esc(item.id)}" data-cart-delta="1" aria-label="Add one ${esc(item.name)}">+</button></span></div></article>`).join('')
+    : '<p class="empty-state">Your basket is empty. <a href="/products.html">Browse products →</a></p>';
+}
+
 async function saveProfile(event) {
   event.preventDefault();
   const user = auth.currentUser;
@@ -244,5 +268,7 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
+window.addEventListener('cart:changed', renderBasket);
+renderBasket();
 showOrderNotice();
 setMode('signup');
