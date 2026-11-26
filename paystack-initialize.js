@@ -94,6 +94,17 @@ module.exports = async function (req, res) {
       createdAt: new Date().toISOString()
     };
     await db.ref(`orders/${orderId}`).set(order);
+    try {
+      await db.ref(`customers/${identity.uid}`).update({
+        name: customerName,
+        email,
+        phone,
+        updatedAt: new Date().toISOString()
+      });
+      await db.ref(`customers/${identity.uid}/orders/${orderId}`).set(true);
+    } catch (profileError) {
+      console.warn('Could not save the customer profile:', profileError?.message || profileError);
+    }
 
     try {
       const callback = new URL('/checkout.html', siteUrl(req));

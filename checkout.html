@@ -14,15 +14,16 @@
     <section class="checkout-main">
       <span class="eyebrow">SECURE CHECKOUT</span>
       <h1>One last step to make it yours.</h1>
-      <p>Create an account with your email, name and phone number, then continue to Paystack.</p>
-      <div class="checkout-tabs" aria-label="Account options">
+      <p id="checkout-intro">Sign in or create an account with your email, name and phone number, then continue to Paystack. Your details are saved to your account for next time.</p>
+      <div id="checkout-tabs" class="checkout-tabs" aria-label="Account options">
         <button type="button" class="active" data-checkout-mode="signup">Create account</button>
         <button type="button" data-checkout-mode="signin">I already have an account</button>
       </div>
-      <form id="checkout-form" class="checkout-form">
+      <form id="checkout-form" class="checkout-form" hidden>
+        <p id="checkout-member-note" class="checkout-member-note" hidden>Signed in as <b id="checkout-member-name"></b> (<span id="checkout-member-email"></span>). <button type="button" id="checkout-signout" class="checkout-link">Not you? Sign out</button></p>
         <label id="checkout-name-label" for="checkout-name">Your full name</label>
         <input id="checkout-name" name="name" autocomplete="name" required placeholder="Name on your order">
-        <label for="checkout-email">Email address</label>
+        <label id="checkout-email-label" for="checkout-email">Email address</label>
         <input id="checkout-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com">
         <label for="checkout-phone">Phone number</label>
         <input id="checkout-phone" name="phone" type="tel" autocomplete="tel" required placeholder="+254 7XX XXX XXX">

@@ -8,7 +8,10 @@ import {
   ref,
   sendEmailVerification,
   sendPasswordResetEmail,
+  set,
   signInWithEmailAndPassword,
+  signOut,
+  update,
   updateProfile
 } from './firebase-client.js';
 
@@ -103,6 +106,15 @@ async function submit(event) {
 
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(credential.user, { displayName: name });
+    try {
+      await set(ref(database, `customers/${credential.user.uid}`), {
+        name,
+        email,
+        createdAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.warn('Could not save the customer profile:', error?.code || error);
+    }
     let note = 'Account created. You are signed in.';
     try {
       await sendEmailVerification(credential.user);
@@ -138,6 +150,52 @@ async function linkOrder(user) {
   }
 }
 
+async function loadDashboard(user) {
+  $('acct-email').textContent = user.email || '';
+  let profile = {};
+  try {
+    profile = (await get(ref(database, `customers/${user.uid}`))).val() || {};
+  } catch (error) {
+    console.warn('Could not load the saved profile:', error?.code || error);
+  }
+  $('profile-name').value = user.displayName || profile.name || '';
+  $('profile-phone').value = profile.phone || '';
+
+  const box = $('account-orders');
+  try {
+    const ids = Object.keys(profile.orders || {});
+    const orders = (await Promise.all(ids.map(async id => {
+      try {
+        return (await get(ref(database, `orders/${id}`))).val();
+      } catch {
+        return null;
+      }
+    }))).filter(Boolean).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    box.innerHTML = orders.length
+      ? orders.map(order => `<article class="account-order"><div class="account-order-top"><b>${K(order.total)}</b><span class="account-order-status" data-status="${esc(order.paymentStatus)}">${esc(order.paymentStatus)}</span></div><span>${(order.items || []).map(item => `${esc(item.name)} × ${Number(item.quantity)}`).join(', ')}</span><small>${new Date(order.createdAt).toLocaleDateString('en-KE')} · ${esc(order.id)}</small></article>`).join('')
+      : '<p class="empty-state">No orders yet. Your paid orders will appear here.</p>';
+  } catch (error) {
+    box.innerHTML = '<p class="empty-state">Could not load your orders right now.</p>';
+  }
+}
+
+async function saveProfile(event) {
+  event.preventDefault();
+  const user = auth.currentUser;
+  const name = $('profile-name').value.trim();
+  const phone = $('profile-phone').value.trim();
+  if (!user) return;
+  if (name.length < 2) return feedback('Enter your full name.', 'error');
+  if (phone.length < 7) return feedback('Enter a valid phone number.', 'error');
+  try {
+    await updateProfile(user, { displayName: name });
+    await update(ref(database, `customers/${user.uid}`), { name, phone, email: user.email || '', updatedAt: new Date().toISOString() });
+    feedback('Your details are saved. They will be used at checkout.', 'success');
+  } catch (error) {
+    feedback(error.message || 'Could not save your details.', 'error');
+  }
+}
+
 async function resendVerification() {
   const user = auth.currentUser;
   if (!user) {
@@ -160,13 +218,18 @@ $('link-order').addEventListener('click', () => {
   if (auth.currentUser) linkOrder(auth.currentUser);
 });
 $('account-resend').addEventListener('click', resendVerification);
+$('profile-form').addEventListener('submit', saveProfile);
+$('account-signout').addEventListener('click', () => signOut(auth));
 
 onAuthStateChanged(auth, async user => {
   const linkButton = $('link-order');
   const resendButton = $('account-resend');
-  linkButton.hidden = !orderId || !user || user.isAnonymous;
+  const signedIn = !!user && !user.isAnonymous;
+  $('account-auth').hidden = signedIn;
+  $('account-dashboard').hidden = !signedIn;
+  linkButton.hidden = !orderId || !signedIn;
   resendButton.hidden = true;
-  if (!user || user.isAnonymous) return;
+  if (!signedIn) return;
 
   $('account-email').value = $('account-email').value || user.email || '';
   try {
@@ -174,7 +237,8 @@ onAuthStateChanged(auth, async user => {
     await user.getIdToken(true);
     linkButton.hidden = true;
     resendButton.hidden = user.emailVerified;
-    if (orderId) linkOrder(user);
+    if (orderId) await linkOrder(user);
+    loadDashboard(user);
   } catch (error) {
     feedback(error.message || 'Could not refresh your account verification status.', 'error');
   }

@@ -7,6 +7,7 @@ import {
   onAuthStateChanged,
   ref,
   sendEmailVerification,
+  set,
   signInWithEmailAndPassword,
   signOut,
   updateProfile
@@ -25,6 +26,7 @@ const cart = (() => {
 })();
 let mode = 'signup';
 let verifying = false;
+let profile = {};
 
 function feedback(message, tone = 'info') {
   const target = $('checkout-feedback');
@@ -35,16 +37,28 @@ function feedback(message, tone = 'info') {
 
 function setMode(next) {
   mode = next;
+  const member = next === 'member';
+  const signup = next === 'signup';
   document.querySelectorAll('[data-checkout-mode]').forEach(button => {
     button.classList.toggle('active', button.dataset.checkoutMode === next);
   });
-  $('checkout-name-label').hidden = next === 'signin';
-  $('checkout-name').hidden = next === 'signin';
-  $('checkout-name').required = next === 'signup';
-  $('checkout-password-label').textContent = next === 'signup' ? 'Create a password' : 'Password';
-  $('checkout-password').autocomplete = next === 'signup' ? 'new-password' : 'current-password';
-  $('checkout-password').minLength = next === 'signup' ? 8 : 1;
-  $('checkout-submit').textContent = next === 'signup' ? 'Create account and continue to Paystack →' : 'Sign in and continue to Paystack →';
+  $('checkout-tabs').hidden = member;
+  $('checkout-member-note').hidden = !member;
+  $('checkout-name-label').hidden = !signup;
+  $('checkout-name').hidden = !signup;
+  $('checkout-name').required = signup;
+  $('checkout-email-label').hidden = member;
+  $('checkout-email').hidden = member;
+  $('checkout-email').required = !member;
+  $('checkout-password-label').hidden = member;
+  $('checkout-password').hidden = member;
+  $('checkout-password').required = !member;
+  $('checkout-password-label').textContent = signup ? 'Create a password' : 'Password';
+  $('checkout-password').autocomplete = signup ? 'new-password' : 'current-password';
+  $('checkout-password').minLength = signup ? 8 : 1;
+  $('checkout-submit').textContent = member
+    ? 'Continue to Paystack →'
+    : signup ? 'Create account and continue to Paystack →' : 'Sign in and continue to Paystack →';
   feedback('');
 }
 
@@ -116,6 +130,16 @@ async function authenticateCustomer(email, password, name) {
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(credential.user, { displayName: name });
   try {
+    await set(ref(database, `customers/${credential.user.uid}`), {
+      name,
+      email,
+      phone: $('checkout-phone').value.trim(),
+      createdAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.warn('Could not save the customer profile:', error?.code || error);
+  }
+  try {
     await sendEmailVerification(credential.user);
   } catch (error) {
     console.warn('Verification email not sent:', error?.code || error);
@@ -125,8 +149,11 @@ async function authenticateCustomer(email, password, name) {
 
 async function submit(event) {
   event.preventDefault();
-  const name = $('checkout-name').value.trim();
-  const email = $('checkout-email').value.trim().toLowerCase();
+  const member = mode === 'member';
+  const current = auth.currentUser;
+  if (member && (!current || current.isAnonymous)) return feedback('Sign in to continue.', 'error');
+  const name = member ? (current.displayName || profile.name || '') : $('checkout-name').value.trim();
+  const email = member ? String(current.email || '').toLowerCase() : $('checkout-email').value.trim().toLowerCase();
   const phone = $('checkout-phone').value.trim();
   const password = $('checkout-password').value;
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return feedback('Enter a valid email address.', 'error');
@@ -138,7 +165,7 @@ async function submit(event) {
 
   $('checkout-submit').disabled = true;
   try {
-    const customer = await authenticateCustomer(email, password, name);
+    const customer = member ? current : await authenticateCustomer(email, password, name);
     if (returnOrderId && returnReference) {
       await verifyPayment(customer);
       return;
@@ -147,7 +174,7 @@ async function submit(event) {
     feedback('Creating your secure Paystack checkout…');
     const result = await authenticatedRequest('/api/paystack-initialize', {
       method: 'POST',
-      body: JSON.stringify({ name: name || customer.displayName || 'Customer', email, phone, items })
+      body: JSON.stringify({ name: name || customer.displayName || profile.name || 'Customer', email, phone, items })
     });
     if (!result.authorizationUrl) throw new Error('Paystack did not provide a checkout link.');
     location.assign(result.authorizationUrl);
@@ -162,20 +189,38 @@ document.querySelectorAll('[data-checkout-mode]').forEach(button => {
 });
 $('checkout-form').addEventListener('submit', submit);
 
-onAuthStateChanged(auth, user => {
+$('checkout-signout').addEventListener('click', () => signOut(auth));
+
+onAuthStateChanged(auth, async user => {
+  $('checkout-form').hidden = false;
   if (user && !user.isAnonymous) {
-    $('checkout-email').value = $('checkout-email').value || user.email || '';
-    $('checkout-name').value = $('checkout-name').value || user.displayName || '';
-    setMode('signin');
+    try {
+      const snapshot = await get(ref(database, `customers/${user.uid}`));
+      profile = snapshot.val() || {};
+    } catch (error) {
+      console.warn('Could not load the saved profile:', error?.code || error);
+      profile = {};
+    }
+    $('checkout-member-name').textContent = user.displayName || profile.name || 'your account';
+    $('checkout-member-email').textContent = user.email || '';
+    $('checkout-phone').value = $('checkout-phone').value || profile.phone || '';
+    setMode('member');
     verifyPayment(user);
-  } else if (returnReference) {
-    setMode('signin');
-    feedback('Sign in with the account used for checkout to verify your payment.');
+  } else {
+    profile = {};
+    setMode(mode === 'member' ? 'signup' : mode);
+    if (returnReference) {
+      setMode('signin');
+      feedback('Sign in with the account used for checkout to verify your payment.');
+    }
   }
+  showCancelled();
 });
 
-if (params.get('status') === 'cancelled' || params.get('cancelled') === 'true') {
-  feedback('Payment was not completed. Your cart is still saved; you can try again.', 'error');
+const cancelled = params.get('status') === 'cancelled' || params.get('cancelled') === 'true';
+function showCancelled() {
+  if (cancelled) feedback('Payment was not completed. Your cart is still saved; you can try again.', 'error');
 }
+showCancelled();
 renderCart();
 setMode('signup');

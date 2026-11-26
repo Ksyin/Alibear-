@@ -745,3 +745,16 @@ body.admin-embed .admin-nav-label,body.admin-embed .admin-nav-note{display:none}
 body.admin-embed .admin-nav button{flex:1 1 auto}
 body.admin-embed .admin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
 body.admin-embed .admin-form-grid{grid-template-columns:1fr}
+
+.checkout-form[hidden],.checkout-tabs[hidden],.checkout-member-note[hidden]{display:none}
+.checkout-member-note{margin:0 0 4px;padding:12px;border-left:3px solid #4d8557;background:#eff7ee;color:#355b3a;font-size:12px;line-height:1.6}
+.checkout-link{padding:0;border:0;background:none;color:#17283f;font:inherit;font-size:12px;text-decoration:underline;cursor:pointer}
+.account-dashboard[hidden]{display:none}
+.account-sub{margin:22px 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:21px;font-weight:500}
+.account-signed{color:#73787a;font-size:12px}
+.account-orders{display:grid;gap:10px}
+.account-order{display:grid;gap:4px;padding:12px;border:1px solid #e8e6df;background:#fafaf8;font-size:11px;line-height:1.5}
+.account-order-top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.account-order small{color:#828689;word-break:break-all}
+.account-order-status{font-weight:700;text-transform:capitalize}
+.account-order-status[data-status=paid]{color:#355b3a}
