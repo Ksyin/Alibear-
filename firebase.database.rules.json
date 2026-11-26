@@ -69,6 +69,9 @@
     // ===================== STOREFRONT: public read, owner/admin can change ANYTHING =====================
     // Product / journal / banner / logo / gallery images are Cloudinary URLs stored inside these nodes
     // (products, journal, settings/site, siteContent, media, gallery, images, banners, partners).
+    // Sections the admin adds to pages (text, image + text, banner, cards)
+    "pageSections": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
+
     "products": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
     "journal": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
     "siteContent": { ".read": true, ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
@@ -101,6 +104,7 @@
         ".write": "auth != null && (auth.uid === $uid || auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists()))"
       }
     },
+    "adminRequests":    { ".read": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())", ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
     "contactRequests":  { ".read": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())", ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
     "contactLimits":    { ".read": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())", ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },
     "checkoutLimits":   { ".read": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())", ".write": "auth != null && (root.child('meta/owner/uid').val() === auth.uid || root.child('meta/admins/' + auth.uid).exists())" },

@@ -20,6 +20,11 @@ window.applySiteSettings=function(settings){
     else vars.forEach(name=>root.removeProperty(name));
   }
   if(!HEX.test(s.accent||''))root.removeProperty('--g2');
+  // Extra theme colours: each one switches on an html[data-*] flag that style.css reads.
+  for(const[key,variable,flag]of[['headerText','--hdr-text','hdrText'],['footerBg','--footer-bg','ftrBg'],['footerText','--footer-text','ftrText'],['bodyBg','--body-bg','bodyBg'],['bodyText','--body-text','bodyText']]){
+    if(HEX.test(s[key]||'')){root.setProperty(variable,s[key]);document.documentElement.dataset[flag]='1'}
+    else{root.removeProperty(variable);delete document.documentElement.dataset[flag]}
+  }
   const text=typeof s.logoText==='string'?s.logoText.trim().slice(0,40):null,image=SAFE_IMG.test(s.logoImage||'')?s.logoImage:LOGO_PLACEHOLDER;
   document.querySelectorAll('.brand-logo').forEach(link=>{
     const img=link.querySelector('.logo-img'),label=link.querySelector('.logo-text');

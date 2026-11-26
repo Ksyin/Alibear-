@@ -16,7 +16,11 @@ module.exports=async function(req,res){
       const existing=await database().ref('meta/admins').limitToFirst(1).get();
       allowed=!existing.exists();
     }
-    if(!allowed)return json(res,403,{error:'This is a shopper account, not a store administrator. Ask the store owner to add your email to ADMIN_EMAILS.'});
+    if(!allowed){
+      // Let the owner approve this person from the dashboard (Team tab).
+      try{await database().ref(`adminRequests/${identity.uid}`).set({email,createdAt:Date.now()})}catch{}
+      return json(res,403,{error:'This account is not a store administrator yet. Your request was sent to the owner, who can approve it from Dashboard > Team.'});
+    }
     if(!(await isAdminUid(identity.uid)))await database().ref(`meta/admins/${identity.uid}`).set({email,createdAt:Date.now()});
     return json(res,200,{admin:true});
   }catch(error){

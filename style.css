@@ -712,3 +712,36 @@ footer{margin-top:70px;padding:48px 0 18px;background:#17283f;color:#e1e5e7}
 footer .footer-brand{display:flex}
 .hero-actions{align-items:flex-start}.hero-actions .btn{white-space:nowrap}
 @media(max-width:720px){.hd .logo .logo-text{max-width:46vw}.hero-actions .btn{white-space:normal}}
+
+/* ===== Extra theme colours (set from Admin > Appearance) ===== */
+html[data-hdr-text] .top,html[data-hdr-text] .site-header,html[data-hdr-text] .top a,html[data-hdr-text] .site-header a:not(.logo),html[data-hdr-text] .site-header button{color:var(--hdr-text)}
+html[data-ftr-bg] footer{background:var(--footer-bg)}
+html[data-ftr-text] footer,html[data-ftr-text] footer a,html[data-ftr-text] footer p,html[data-ftr-text] footer h3,html[data-ftr-text] footer h4,html[data-ftr-text] footer li,html[data-ftr-text] footer small{color:var(--footer-text)}
+html[data-body-bg] body{background:var(--body-bg)}
+html[data-body-text] body{color:var(--body-text)}
+
+/* ===== Sections added by the admin (pageSections) ===== */
+.cs{padding:56px 0}
+.cs>.w{display:grid;gap:18px}
+.cs h2{margin:0;font-size:clamp(26px,4vw,38px);line-height:1.15}
+.cs p{margin:0;max-width:64ch;white-space:pre-line;line-height:1.65}
+.cs-btn{display:inline-block;justify-self:start;padding:12px 24px;border-radius:6px;background:var(--accent,#efb022);color:#241900;font-weight:700;text-decoration:none}
+.cs-imgtext>.w{grid-template-columns:1fr 1fr;align-items:center;gap:36px}
+.cs-imgtext.flip .cs-media{order:2}
+.cs-media img{display:block;width:100%;max-height:440px;object-fit:cover;border-radius:10px}
+.cs-banner{text-align:center}.cs-banner>.w{justify-items:center}.cs-banner .cs-btn{justify-self:center}
+.cs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.cs-card{padding:22px;border-radius:10px;background:#8080801c;border:1px solid #80808033}
+.cs-card h3{margin:0 0 8px;font-size:19px}.cs-card p{font-size:15px}
+@media(max-width:720px){.cs{padding:38px 0}.cs-imgtext>.w{grid-template-columns:1fr}.cs-imgtext.flip .cs-media{order:0}}
+
+/* ===== Admin panel embedded inside the live site ===== */
+body.admin-embed{background:#f5f6f8}
+body.admin-embed .admin-topbar,body.admin-embed .admin-welcome{display:none}
+body.admin-embed .admin-shell{padding:12px 14px 40px}
+body.admin-embed .admin-layout{grid-template-columns:1fr;gap:12px}
+body.admin-embed .admin-nav{position:static;display:flex;flex-wrap:wrap;gap:4px;padding:6px}
+body.admin-embed .admin-nav-label,body.admin-embed .admin-nav-note{display:none}
+body.admin-embed .admin-nav button{flex:1 1 auto}
+body.admin-embed .admin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+body.admin-embed .admin-form-grid{grid-template-columns:1fr}

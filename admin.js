@@ -1,160 +1,1027 @@
-import{auth,authenticatedRequest,database,ensureAdmin,createUserWithEmailAndPassword,sendEmailVerification,sendPasswordResetEmail,signInWithEmailAndPassword,signOut,onAuthStateChanged,updateProfile,update,ref,get,onValue}from'./firebase-client.js';
-const $=id=>document.getElementById(id),toast=(message,tone='info')=>{const element=$('admin-toast');element.textContent=message;element.dataset.tone=tone;element.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>element.style.display='none',3500)};
-const PAGE_OPTIONS=[['home','Home page'],['products','Shop page'],['deals','Offers page'],['how-it-works','How it works'],['app-page','App page'],['about','About page'],['blog','Journal'],['contact','Contact page'],['product','Product page'],['account','Customer accounts']];
-let D=Store.load(),orders={},contactRequests={},tab=(['Products','Journal','Appearance','Enquiries','Settings'].includes(new URLSearchParams(location.search).get('tab'))?new URLSearchParams(location.search).get('tab'):'Dashboard'),query='',previewPage='home',authMode='signin',ownerConfirmed=false,saveTimers=new Map();
-const products=()=>Array.isArray(D.products)?D.products:Object.values(D.products||{}),journal=()=>Array.isArray(D.journal)?D.journal:Object.values(D.journal||{});
-function sayAuth(message,tone='info'){const element=$('auth-feedback');if(element){element.textContent=message;element.dataset.tone=tone}}
-function authError(error){
-  const messages={
-    'auth/email-already-in-use':'An account already exists for this email. Sign in instead, or use Forgot password.',
-    'auth/invalid-credential':'The email or password is incorrect. Check them and try again, or reset your password.',
-    'auth/invalid-login-credentials':'The email or password is incorrect. Check them and try again, or reset your password.',
-    'auth/user-not-found':'No account exists for this email. Create an account first.',
-    'auth/wrong-password':'The password is incorrect. Try again or reset your password.',
-    'auth/invalid-email':'Enter a valid email address.',
-    'auth/weak-password':'Choose a password with at least 8 characters.',
-    'auth/too-many-requests':'Too many attempts. Wait a few minutes and try again.',
-    'auth/network-request-failed':'Could not connect to Firebase. Check your internet connection and try again.',
-    'auth/operation-not-allowed':'Email and password sign-in is not enabled in Firebase Authentication.',
-    'auth/unauthorized-domain':'This website domain is not authorized in Firebase Authentication settings.',
-    'auth/unauthorized-continue-uri':'Verification email could not be sent: add this site domain in Firebase Console > Authentication > Settings > Authorized domains. Your account still works.'
+import {
+  auth,
+  authenticatedRequest,
+  database,
+  ensureAdmin,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  updateProfile,
+  update,
+  ref,
+  get,
+  onValue,
+} from "./firebase-client.js";
+const EMBED = new URLSearchParams(location.search).has("embed");
+if (EMBED) document.body.classList.add("admin-embed");
+// Tell the live site (when this panel is open inside it) that data changed so it can refresh.
+const changed = () => {
+  try {
+    if (parent !== window)
+      parent.postMessage({ type: "aurum-admin-saved" }, location.origin);
+  } catch {}
+};
+const $ = (id) => document.getElementById(id),
+  toast = (message, tone = "info") => {
+    const element = $("admin-toast");
+    element.textContent = message;
+    element.dataset.tone = tone;
+    element.style.display = "block";
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => (element.style.display = "none"), 3500);
   };
-  if(error?.message==='The service returned an invalid response.'||error?.name==='TypeError'&&/fetch/i.test(error.message||'')){
-    return 'Firebase sign-in may have succeeded, but the admin service could not be reached. Deploy this site on Vercel and configure its Firebase Admin environment variables.';
+const PAGE_OPTIONS = [
+  ["home", "Home page"],
+  ["products", "Shop page"],
+  ["deals", "Offers page"],
+  ["how-it-works", "How it works"],
+  ["app-page", "App page"],
+  ["about", "About page"],
+  ["blog", "Journal"],
+  ["contact", "Contact page"],
+  ["product", "Product page"],
+  ["account", "Customer accounts"],
+];
+let D = Store.load(),
+  orders = {},
+  contactRequests = {},
+  tab = ["Products", "Offers", "Journal", "Appearance", "Enquiries", "Settings"].includes(
+    new URLSearchParams(location.search).get("tab"),
+  )
+    ? new URLSearchParams(location.search).get("tab")
+    : "Dashboard",
+  query = "",
+  previewPage = "home",
+  authMode = "signin",
+  ownerConfirmed = false,
+  saveTimers = new Map();
+const products = () =>
+    Array.isArray(D.products) ? D.products : Object.values(D.products || {}),
+  journal = () =>
+    Array.isArray(D.journal) ? D.journal : Object.values(D.journal || {});
+function sayAuth(message, tone = "info") {
+  const element = $("auth-feedback");
+  if (element) {
+    element.textContent = message;
+    element.dataset.tone = tone;
   }
-  return messages[error?.code]||error?.message||'Could not complete this account request. Try again or reset your password.';
 }
-function setAuthMode(mode){authMode=mode;$('auth-heading').textContent={signin:'Welcome back',signup:'Create your Alibear Automation account',reset:'Reset your password'}[mode];$('auth-description').textContent={signin:'Sign in to manage Alibear Automation.',signup:'Create an account with any email to manage the store.',reset:'Enter your email to receive a secure reset link.'}[mode];$('admin-name-label').hidden=mode!=='signup';$('admin-name').hidden=mode!=='signup';$('admin-name').required=mode==='signup';$('admin-password').hidden=mode==='reset';$('admin-password').required=mode!=='reset';$('admin-password').minLength=mode==='signup'?8:1;$('admin-password').autocomplete=mode==='signin'?'current-password':'new-password';$('admin-auth-submit').textContent={signin:'Sign in to dashboard →',signup:'Create account →',reset:'Send reset link →'}[mode];$('admin-create').hidden=mode==='reset'||mode==='signup';$('admin-forgot').hidden=mode!=='signin';$('admin-cancel').hidden=mode==='signin';sayAuth('')}
-async function initializeStore(){const result=await get(ref(database,'products'));if(!result.exists()){const catalog=Object.fromEntries(products().map((product,index)=>[String(product.id||Date.now()+index),product]));await update(ref(database),{products:catalog})}const articleSnapshot=await get(ref(database,'journal'));if(!articleSnapshot.exists()){const defaultJournal=Array.isArray(D.journal)?D.journal:Store.load().journal;const articles=Object.fromEntries(defaultJournal.map((item,index)=>[String(item.id||`article-${index}`),item]));await update(ref(database),{journal:articles})}}
-async function loadPrivateStoreData(){for(const[path,callback]of[['orders',value=>{orders=value||{};refreshVisibleTab()}],['contactRequests',value=>{contactRequests=value||{};refreshVisibleTab()}]])onValue(ref(database,path),snapshot=>callback(snapshot.val()))}
-function refreshVisibleTab(){if(tab==='Dashboard'||tab==='Enquiries')draw()}
-function emptyState(text){return`<p class="empty-state">${esc(text)}</p>`}
-function imageMarkup(item,label){return item?IM(item,label):'<span class="table-image-placeholder">AH</span>'}
-function renderDashboard(){const catalog=products().slice(0,5),allOrders=Object.values(orders),paid=allOrders.filter(order=>order.paymentStatus==='paid');const recent=[...Object.values(contactRequests).map(item=>({...item,kind:'Message'})),...allOrders.map(item=>({...item,kind:item.paymentStatus==='paid'?'Paid order':'Payment'}))].sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))).slice(0,5);return`<div class="admin-welcome-card"><div><span>YOUR STORE AT A GLANCE</span><h2>Thoughtful details.<br>One well-run shop.</h2><p>Update your storefront, manage inventory and follow confirmed orders.</p></div><div class="admin-welcome-orbit"><b>AU</b><span>SMART LIVING, MADE SIMPLE</span></div></div><div class="dashboard-columns"><section class="admin-card"><div class="admin-card-heading"><div><span class="eyebrow">JUST ADDED</span><h3>Recently listed products</h3></div><button class="text-link" data-tab="Products">Manage products →</button></div>${catalog.length?`<div class="recent-list">${catalog.map(item=>`<div class="recent-row">${imageMarkup(item.img,item.name)}<span><b>${esc(item.name)}</b><small>${esc(item.cat)}</small></span><strong>${K(item.price)}</strong></div>`).join('')}</div>`:emptyState('Products you publish will appear here.')}</section><section class="admin-card"><div class="admin-card-heading"><div><span class="eyebrow">CUSTOMER CARE</span><h3>Recent orders &amp; messages</h3></div><button class="text-link" data-tab="Enquiries">Open inbox →</button></div>${recent.length?`<div class="recent-messages">${recent.map(item=>`<article><b>${esc(item.customerName||item.name||'Customer')} <span class="dashboard-event">${item.kind}</span></b><small>${esc(item.createdAt||'')}</small><p>${esc(item.paymentStatus?`${item.paymentStatus.toUpperCase()} · ${K(item.total||0)} · ${item.email||''}`:item.message||'Contact request')}</p></article>`).join('')}</div>`:'<div class="empty-inbox"><span>✉</span><b>Your inbox is clear.</b><p>Orders and customer messages will show here when your Firebase database is configured.</p></div>'}</section></div><section class="admin-tip"><b>About image uploads</b><p>New product and article photos are signed and uploaded to your Cloudinary account. Configure the rotated API secret in Vercel to turn on uploads.</p></section><section class="admin-tip"><b>About customer receipts</b><p>Email delivery is currently paused. A verified sending domain and Resend API key are required before receipts can be sent.</p></section>`}
-function productForm(existing){return`<section class="admin-card admin-form-card"><div class="admin-card-heading"><div><span class="eyebrow">THE SHOP CATALOGUE</span><h3>${existing?'Edit product details':'Add a product'}</h3><p>Upload the product photo to your Cloudinary account before publishing.</p></div><span class="form-icon">＋</span></div><form id="product-form" class="admin-form-grid" data-editing-id="${existing?esc(existing.id):''}"><label>Product name<input name="name" required value="${esc(existing?.name||'')}" placeholder="e.g. Smart video doorbell"></label><label>Category<input name="category" required value="${esc(existing?.cat||'')}" placeholder="Smart Locks, Cameras…"></label><label>Price in KSh<input name="price" required type="number" min="1" step="1" value="${existing?Number(existing.price):''}" placeholder="12000"></label><label>Previous price<input name="old" type="number" min="0" step="1" value="${existing?.old?Number(existing.old):''}" placeholder="Optional"></label><label class="span-two">Product photo${existing?.img?`<span class="upload-current">Current: ${esc(existing.img)}</span>`:''}<input name="file" type="file" accept="image/jpeg,image/png,image/webp" ${existing?'':'required'}></label><label class="span-two">Image description<input name="alt" value="${esc(existing?.alt||'')}" placeholder="Describe the product photo"></label><label class="span-two">Short product description<textarea name="description" rows="3" required placeholder="What makes this product useful?">${esc(existing?.desc||'')}</textarea></label><label class="span-two">Full product description<textarea name="longDesc" rows="5" placeholder="Detailed specifications, compatibility, what is included and care instructions.">${esc(existing?.longDesc||'')}</textarea></label><label class="span-two">Features (one per line)<textarea name="features" rows="4" placeholder="Fingerprint access&#10;Remote mobile unlock&#10;Installation help">${esc(Array.isArray(existing?.features)?existing.features.join('\n'):'')}</textarea></label><label class="checkbox-label span-two"><input name="flash" type="checkbox" ${existing?.flash?'checked':''}> Feature in offers</label><div class="span-two form-actions"><button class="btn gold" type="submit">${existing?'Save product changes →':'Add product to shop →'}</button>${existing?'<button type="button" class="btn cancel-edit" data-cancel-edit>Cancel editing</button>':''}</div></form></section>`}
-function renderProducts(){const listed=products().filter(item=>(item.name+' '+item.cat+' '+item.desc).toLowerCase().includes(query));const editing=D.products.find(item=>String(item.id)===String(window.editingProductId));return`${productForm(editing)}<section class="admin-card catalog-card"><div class="admin-card-heading catalog-heading"><div><span class="eyebrow">YOUR LISTINGS</span><h3>Products <span class="small-count">${listed.length}</span></h3></div><input id="product-search" type="search" value="${esc(query)}" placeholder="Search products…" aria-label="Search dashboard products"></div>${listed.length?`<div class="table-scroll"><table class="admin-table"><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Offer</th><th></th></tr></thead><tbody>${listed.map(item=>`<tr><td><div class="table-product">${imageMarkup(item.img,item.name)}<span><b>${esc(item.name)}</b><small>${esc(item.desc)}</small></span></div></td><td>${esc(item.cat)}</td><td><b>${K(item.price)}</b>${item.old?`<small class="table-old-price">${K(item.old)}</small>`:''}</td><td>${item.flash?'<span class="status-tag">Featured</span>':'—'}</td><td><div class="table-actions"><button type="button" data-edit-product="${esc(item.id)}">Edit</button><button class="delete-button" type="button" data-delete="product" data-id="${esc(item.id)}">Remove</button></div></td></tr>`).join('')}</tbody></table></div>`:emptyState('No products match your search.')}</section>`}
-function renderJournal(){const articles=journal();return`<section class="admin-card admin-form-card"><div class="admin-card-heading"><div><span class="eyebrow">ONE HOME FOR IDEAS AND UPDATES</span><h3>Publish to the journal</h3><p>Blog guides and company news now share one page.</p></div><span class="form-icon">✎</span></div><form id="journal-form" class="admin-form-grid"><label>Post category<select name="type"><option>Guide</option><option>News</option></select></label><label>Publication date<input name="date" placeholder="e.g. October 2026"></label><label class="span-two">Headline<input name="title" required placeholder="Write a clear, friendly headline"></label><label class="span-two">Post copy<textarea name="body" required rows="5" placeholder="Write the helpful details you want to share."></textarea></label><label class="span-two">Cover image<input name="file" type="file" accept="image/jpeg,image/png,image/webp"></label><div class="span-two"><button class="btn gold" type="submit">Publish to the journal →</button></div></form></section><section class="admin-card catalog-card"><div class="admin-card-heading"><div><span class="eyebrow">PUBLISHED CONTENT</span><h3>Journal posts <span class="small-count">${articles.length}</span></h3></div></div>${articles.length?`<div class="table-scroll"><table class="admin-table"><thead><tr><th>Story</th><th>Category</th><th>Published</th><th></th></tr></thead><tbody>${articles.map(item=>`<tr><td><div class="table-product">${imageMarkup(item.img,item.t)}<span><b>${esc(item.t)}</b><small>${esc(item.x)}</small></span></div></td><td>${esc(item.type||'Guide')}</td><td>${esc(item.d||'')}</td><td><button class="delete-button" data-delete="journal" data-id="${esc(item.id)}" type="button">Remove</button></td></tr>`).join('')}</tbody></table></div>`:emptyState('Publish a helpful idea or news update above.')}</section>`}
-function renderEnquiries(){const allOrders=Object.values(orders).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))),messages=Object.values(contactRequests).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));return`${allOrders.length?`<section class="admin-card catalog-card"><div class="admin-card-heading"><div><span class="eyebrow">M-PESA STK CHECKOUT</span><h3>Orders <span class="small-count">${allOrders.length}</span></h3></div></div><div class="table-scroll"><table class="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>Paystack</th><th>Items</th><th>Payment</th><th>Receipt email</th></tr></thead><tbody>${allOrders.map(item=>`<tr><td>${esc(String(item.id).slice(0,12))}<small>${esc(item.createdAt||'')}</small></td><td>${esc(item.customerName)}<small>${esc(item.email)}</small></td><td>${esc(item.phone)}</td><td>${item.items.map(product=>`${esc(product.name)} × ${product.quantity}`).join('<br>')}</td><td><span class="status-tag ${esc(item.paymentStatus)}">${esc(item.paymentStatus)}</span>${item.receiptNumber?`<small>Paystack ${esc(item.receiptNumber)}</small>`:''}</td><td>${esc(item.receiptStatus||'pending')}</td></tr>`).join('')}</tbody></table></div></section>`:emptyState('Confirmed Paystack purchases will appear here after secure Paystack setup.')}${messages.length?`<section class="admin-card catalog-card"><div class="admin-card-heading"><div><span class="eyebrow">CUSTOMER CARE</span><h3>Contact messages <span class="small-count">${messages.length}</span></h3></div></div><div class="table-scroll"><table class="admin-table"><thead><tr><th>Received</th><th>Name</th><th>Contact</th><th>Message</th></tr></thead><tbody>${messages.map(item=>`<tr><td>${esc(item.createdAt)}</td><td>${esc(item.name)}</td><td>${esc(item.contact)}</td><td>${esc(item.message)}</td></tr>`).join('')}</tbody></table></div></section>`:emptyState('Customer contact messages will appear here.')}`}
-function renderSiteEditor(){return`<section class="admin-card content-editor-card"><div class="admin-card-heading"><div><span class="eyebrow">VISUAL SITE EDITOR</span><h3>Edit any page, directly</h3><p>Open the whole website in edit mode: change any text, image, link, header or footer, hide sections, and jump to products. Changes go live automatically.</p></div></div><a class="btn gold" href="/editor.html">Open the site editor →</a></section>`}
-function renderDefaultPages(){const loaded=JSON.parse(sessionStorage.getItem('firebaseDefaultSeed')||'false');return`<section class="admin-card setup-card"><span class="eyebrow">STORE SETUP</span><h3>${loaded?'Store content is connected':'Connect your starter catalogue'}</h3><p>${loaded?'Your current catalogue and journal posts are saved to Firebase. Update prices and page copy anytime.':'Loading products and journal posts into Firebase only adds missing information; it will not overwrite products already saved in the database.'}</p><button type="button" id="seed-default-content" class="btn gold">${loaded?'Refresh the starter content':'Set up the starter catalogue →'}</button></section><section class="admin-card setup-card"><span class="eyebrow">LIVE PAYMENTS</span><h3>Paystack M‑Pesa checkout</h3><p>Checkout is enabled only after the Safaricom callback URL, service-account permissions and Paystack credentials have been configured in Vercel.</p><code>DARAJA_ENVIRONMENT=sandbox</code><small>Use Safaricom sandbox credentials for test checkouts. Switch to production only after completing payment-provider testing.</small></section><section class="admin-card setup-card"><span class="eyebrow">EMAIL RECEIPTS</span><h3>Receipt email setup</h3><p>Receipts are currently turned off, as requested. After verifying a sending domain with Resend, set <code>RESEND_FROM</code> and <code>RESEND_API_KEY</code> in Vercel.</p><small>A Gmail mailbox is not a valid Resend sender. Enable email only after the domain and test delivery are verified.</small></section><section class="admin-card setup-card"><span class="eyebrow">DATABASE ACCESS</span><h3>Protect your Firebase Realtime Database</h3><p>Publish <code>firebase.database.rules.json</code> in Firebase Console &gt; Realtime Database &gt; Rules. The storefront is read-only; the signed-in owner account is the only administrator allowed to change the catalogue or website copy.</p><small>Never set database rules to public write access.</small></section>`}
+function authError(error) {
+  const messages = {
+    "auth/email-already-in-use":
+      "An account already exists for this email. Sign in instead, or use Forgot password.",
+    "auth/invalid-credential":
+      "The email or password is incorrect. Check them and try again, or reset your password.",
+    "auth/invalid-login-credentials":
+      "The email or password is incorrect. Check them and try again, or reset your password.",
+    "auth/user-not-found":
+      "No account exists for this email. Create an account first.",
+    "auth/wrong-password":
+      "The password is incorrect. Try again or reset your password.",
+    "auth/invalid-email": "Enter a valid email address.",
+    "auth/weak-password": "Choose a password with at least 8 characters.",
+    "auth/too-many-requests":
+      "Too many attempts. Wait a few minutes and try again.",
+    "auth/network-request-failed":
+      "Could not connect to Firebase. Check your internet connection and try again.",
+    "auth/operation-not-allowed":
+      "Email and password sign-in is not enabled in Firebase Authentication.",
+    "auth/unauthorized-domain":
+      "This website domain is not authorized in Firebase Authentication settings.",
+    "auth/unauthorized-continue-uri":
+      "Verification email could not be sent: add this site domain in Firebase Console > Authentication > Settings > Authorized domains. Your account still works.",
+  };
+  if (
+    error?.message === "The service returned an invalid response." ||
+    (error?.name === "TypeError" && /fetch/i.test(error.message || ""))
+  ) {
+    return "Firebase sign-in may have succeeded, but the admin service could not be reached. Deploy this site on Vercel and configure its Firebase Admin environment variables.";
+  }
+  return (
+    messages[error?.code] ||
+    error?.message ||
+    "Could not complete this account request. Try again or reset your password."
+  );
+}
+function setAuthMode(mode) {
+  authMode = mode;
+  $("auth-heading").textContent = {
+    signin: "Welcome back",
+    signup: "Create your Alibear Automation account",
+    reset: "Reset your password",
+  }[mode];
+  $("auth-description").textContent = {
+    signin: "Sign in to manage Alibear Automation.",
+    signup: "Create an account with any email to manage the store.",
+    reset: "Enter your email to receive a secure reset link.",
+  }[mode];
+  $("admin-name-label").hidden = mode !== "signup";
+  $("admin-name").hidden = mode !== "signup";
+  $("admin-name").required = mode === "signup";
+  $("admin-password").hidden = mode === "reset";
+  $("admin-password").required = mode !== "reset";
+  $("admin-password").minLength = mode === "signup" ? 8 : 1;
+  $("admin-password").autocomplete =
+    mode === "signin" ? "current-password" : "new-password";
+  $("admin-auth-submit").textContent = {
+    signin: "Sign in to dashboard →",
+    signup: "Create account →",
+    reset: "Send reset link →",
+  }[mode];
+  $("admin-create").hidden = mode === "reset" || mode === "signup";
+  $("admin-forgot").hidden = mode !== "signin";
+  $("admin-cancel").hidden = mode === "signin";
+  sayAuth("");
+}
+async function initializeStore() {
+  const result = await get(ref(database, "products"));
+  const seeded = (await get(ref(database, "settings/seeded"))).val();
+  if (!result.exists() && !seeded) {
+    const catalog = Object.fromEntries(
+      products().map((product, index) => [
+        String(product.id || Date.now() + index),
+        product,
+      ]),
+    );
+    await update(ref(database), { products: catalog });
+    await update(ref(database, "settings"), { seeded: true });
+  }
+  const articleSnapshot = await get(ref(database, "journal"));
+  if (!articleSnapshot.exists()) {
+    const defaultJournal = Array.isArray(D.journal)
+      ? D.journal
+      : Store.load().journal;
+    const articles = Object.fromEntries(
+      defaultJournal.map((item, index) => [
+        String(item.id || `article-${index}`),
+        item,
+      ]),
+    );
+    await update(ref(database), { journal: articles });
+  }
+}
+async function syncFromDatabase() {
+  const [productSnap, journalSnap] = await Promise.all([
+    get(ref(database, "products")),
+    get(ref(database, "journal")),
+  ]);
+  const list = (snap) =>
+    snap.exists()
+      ? Object.entries(snap.val() || {}).map(([key, value]) => ({
+          ...value,
+          id: value.id ?? key,
+        }))
+      : null;
+  const liveProducts = list(productSnap),
+    liveJournal = list(journalSnap);
+  if (liveProducts) D.products = liveProducts;
+  else if (sessionStorage.getItem("firebaseDefaultSeed") === "true")
+    D.products = [];
+  if (liveJournal) D.journal = liveJournal;
+}
+async function loadPrivateStoreData() {
+  for (const [path, callback] of [
+    [
+      "orders",
+      (value) => {
+        orders = value || {};
+        refreshVisibleTab();
+      },
+    ],
+    [
+      "contactRequests",
+      (value) => {
+        contactRequests = value || {};
+        refreshVisibleTab();
+      },
+    ],
+  ])
+    onValue(ref(database, path), (snapshot) => callback(snapshot.val()));
+}
+function refreshVisibleTab() {
+  if (tab === "Dashboard" || tab === "Enquiries") draw();
+}
+function emptyState(text) {
+  return `<p class="empty-state">${esc(text)}</p>`;
+}
+function imageMarkup(item, label) {
+  return item
+    ? IM(item, label)
+    : '<span class="table-image-placeholder">AH</span>';
+}
+function renderDashboard() {
+  const catalog = products().slice(0, 5),
+    allOrders = Object.values(orders),
+    paid = allOrders.filter((order) => order.paymentStatus === "paid");
+  const recent = [
+    ...Object.values(contactRequests).map((item) => ({
+      ...item,
+      kind: "Message",
+    })),
+    ...allOrders.map((item) => ({
+      ...item,
+      kind: item.paymentStatus === "paid" ? "Paid order" : "Payment",
+    })),
+  ]
+    .sort((a, b) =>
+      String(b.createdAt || "").localeCompare(String(a.createdAt || "")),
+    )
+    .slice(0, 5);
+  return `<div class="admin-welcome-card"><div><span>YOUR STORE AT A GLANCE</span><h2>Thoughtful details.<br>One well-run shop.</h2><p>Update your storefront, manage inventory and follow confirmed orders.</p></div><div class="admin-welcome-orbit"><b>AU</b><span>SMART LIVING, MADE SIMPLE</span></div></div><div class="dashboard-columns"><section class="admin-card"><div class="admin-card-heading"><div><span class="eyebrow">JUST ADDED</span><h3>Recently listed products</h3></div><button class="text-link" data-tab="Products">Manage products →</button></div>${catalog.length ? `<div class="recent-list">${catalog.map((item) => `<div class="recent-row">${imageMarkup(item.img, item.name)}<span><b>${esc(item.name)}</b><small>${esc(item.cat)}</small></span><strong>${K(item.price)}</strong></div>`).join("")}</div>` : emptyState("Products you publish will appear here.")}</section><section class="admin-card"><div class="admin-card-heading"><div><span class="eyebrow">CUSTOMER CARE</span><h3>Recent orders &amp; messages</h3></div><button class="text-link" data-tab="Enquiries">Open inbox →</button></div>${recent.length ? `<div class="recent-messages">${recent.map((item) => `<article><b>${esc(item.customerName || item.name || "Customer")} <span class="dashboard-event">${item.kind}</span></b><small>${esc(item.createdAt || "")}</small><p>${esc(item.paymentStatus ? `${item.paymentStatus.toUpperCase()} · ${K(item.total || 0)} · ${item.email || ""}` : item.message || "Contact request")}</p></article>`).join("")}</div>` : '<div class="empty-inbox"><span>✉</span><b>Your inbox is clear.</b><p>Orders and customer messages will show here when your Firebase database is configured.</p></div>'}</section></div><section class="admin-tip"><b>About image uploads</b><p>New product and article photos are signed and uploaded to your Cloudinary account. Configure the rotated API secret in Vercel to turn on uploads.</p></section><section class="admin-tip"><b>About customer receipts</b><p>Email delivery is currently paused. A verified sending domain and Resend API key are required before receipts can be sent.</p></section>`;
+}
+function productForm(existing) {
+  return `<section class="admin-card admin-form-card"><div class="admin-card-heading"><div><span class="eyebrow">THE SHOP CATALOGUE</span><h3>${existing ? "Edit product details" : "Add a product"}</h3><p>Upload the product photo to your Cloudinary account before publishing.</p></div><span class="form-icon">＋</span></div><form id="product-form" class="admin-form-grid" data-editing-id="${existing ? esc(existing.id) : ""}"><label>Product name<input name="name" required value="${esc(existing?.name || "")}" placeholder="e.g. Smart video doorbell"></label><label>Category<input name="category" required value="${esc(existing?.cat || "")}" placeholder="Smart Locks, Cameras…"></label><label>Price in KSh<input name="price" required type="number" min="1" step="1" value="${existing ? Number(existing.price) : ""}" placeholder="12000"></label><label>Previous price<input name="old" type="number" min="0" step="1" value="${existing?.old ? Number(existing.old) : ""}" placeholder="Optional"></label><label class="span-two">Product photo${existing?.img ? `<span class="upload-current">Current: ${esc(existing.img)}</span>` : ""}<input name="file" type="file" accept="image/jpeg,image/png,image/webp" ${existing ? "" : "required"}></label><label class="span-two">Image description<input name="alt" value="${esc(existing?.alt || "")}" placeholder="Describe the product photo"></label><label class="span-two">Short product description<textarea name="description" rows="3" required placeholder="What makes this product useful?">${esc(existing?.desc || "")}</textarea></label><label class="span-two">Full product description<textarea name="longDesc" rows="5" placeholder="Detailed specifications, compatibility, what is included and care instructions.">${esc(existing?.longDesc || "")}</textarea></label><label class="span-two">Features (one per line)<textarea name="features" rows="4" placeholder="Fingerprint access&#10;Remote mobile unlock&#10;Installation help">${esc(Array.isArray(existing?.features) ? existing.features.join("\n") : "")}</textarea></label><label class="checkbox-label span-two"><input name="flash" type="checkbox" ${existing?.flash || (!existing && window.newOffer) ? "checked" : ""}> Feature in offers</label><div class="span-two form-actions"><button class="btn gold" type="submit">${existing ? "Save product changes →" : "Add product to shop →"}</button>${existing ? '<button type="button" class="btn cancel-edit" data-cancel-edit>Cancel editing</button>' : ""}</div></form></section>`;
+}
+function renderProducts() {
+  const listed = products().filter((item) =>
+    (item.name + " " + item.cat + " " + item.desc)
+      .toLowerCase()
+      .includes(query),
+  );
+  const editing = D.products.find(
+    (item) => String(item.id) === String(window.editingProductId),
+  );
+  return `${productForm(editing)}<section class="admin-card catalog-card"><div class="admin-card-heading catalog-heading"><div><span class="eyebrow">YOUR LISTINGS</span><h3>Products <span class="small-count">${listed.length}</span></h3></div><input id="product-search" type="search" value="${esc(query)}" placeholder="Search products…" aria-label="Search dashboard products"></div>${listed.length ? `<div class="table-scroll"><table class="admin-table"><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Offer</th><th></th></tr></thead><tbody>${listed.map((item) => `<tr><td><div class="table-product">${imageMarkup(item.img, item.name)}<span><b>${esc(item.name)}</b><small>${esc(item.desc)}</small></span></div></td><td>${esc(item.cat)}</td><td><b>${K(item.price)}</b>${item.old ? `<small class="table-old-price">${K(item.old)}</small>` : ""}</td><td>${item.flash ? '<span class="status-tag">Featured</span>' : "—"}</td><td><div class="table-actions"><button type="button" data-edit-product="${esc(item.id)}">Edit</button><button class="delete-button" type="button" data-delete="product" data-id="${esc(item.id)}">Remove</button></div></td></tr>`).join("")}</tbody></table></div>` : emptyState("No products match your search.")}</section>`;
+}
+function renderJournal() {
+  const articles = journal();
+  return `<section class="admin-card admin-form-card"><div class="admin-card-heading"><div><span class="eyebrow">ONE HOME FOR IDEAS AND UPDATES</span><h3>Publish to the journal</h3><p>Blog guides and company news now share one page.</p></div><span class="form-icon">✎</span></div><form id="journal-form" class="admin-form-grid"><label>Post category<select name="type"><option>Guide</option><option>News</option></select></label><label>Publication date<input name="date" placeholder="e.g. October 2026"></label><label class="span-two">Headline<input name="title" required placeholder="Write a clear, friendly headline"></label><label class="span-two">Post copy<textarea name="body" required rows="5" placeholder="Write the helpful details you want to share."></textarea></label><label class="span-two">Cover image<input name="file" type="file" accept="image/jpeg,image/png,image/webp"></label><div class="span-two"><button class="btn gold" type="submit">Publish to the journal →</button></div></form></section><section class="admin-card catalog-card"><div class="admin-card-heading"><div><span class="eyebrow">PUBLISHED CONTENT</span><h3>Journal posts <span class="small-count">${articles.length}</span></h3></div></div>${articles.length ? `<div class="table-scroll"><table class="admin-table"><thead><tr><th>Story</th><th>Category</th><th>Published</th><th></th></tr></thead><tbody>${articles.map((item) => `<tr><td><div class="table-product">${imageMarkup(item.img, item.t)}<span><b>${esc(item.t)}</b><small>${esc(item.x)}</small></span></div></td><td>${esc(item.type || "Guide")}</td><td>${esc(item.d || "")}</td><td><button class="delete-button" data-delete="journal" data-id="${esc(item.id)}" type="button">Remove</button></td></tr>`).join("")}</tbody></table></div>` : emptyState("Publish a helpful idea or news update above.")}</section>`;
+}
+function renderOffers() {
+  const all = products(),
+    offers = all.filter((item) => item.flash),
+    others = all.filter((item) => !item.flash),
+    percent = (item) =>
+      item.old > item.price ? Math.round((1 - item.price / item.old) * 100) : 0;
+  const addForm = others.length
+    ? `<form id="offer-form" class="admin-form-grid"><label class="span-two">Product<select name="product">${others.map((item) => `<option value="${esc(item.id)}">${esc(item.name)} (now ${K(item.price)})</option>`).join("")}</select></label><label>Offer price (KES)<input name="price" type="number" min="1" step="1" required placeholder="e.g. 14900"></label><label>Original price (KES)<input name="old" type="number" min="1" step="1" required placeholder="e.g. 19000"></label><div class="span-two form-actions"><button class="btn gold" type="submit">Add to offers →</button><button class="btn" type="button" data-new-offer>Create a brand-new product as an offer</button></div></form>`
+    : `<p class="empty-state">Every product is already an offer.</p><div class="form-actions"><button class="btn" type="button" data-new-offer>Create a brand-new product as an offer</button></div>`;
+  return `<section class="admin-card admin-form-card"><div class="admin-card-heading"><div><span class="eyebrow">OFFERS PAGE</span><h3>Add an offer</h3><p>Pick a product and set its offer price. It appears on the Offers page and the home page straight away.</p></div><span class="form-icon">✳</span></div>${addForm}</section><section class="admin-card catalog-card"><div class="admin-card-heading"><div><span class="eyebrow">LIVE NOW</span><h3>Current offers <span class="small-count">${offers.length}</span></h3></div></div>${offers.length ? `<div class="table-scroll"><table class="admin-table"><thead><tr><th>Product</th><th>Offer price</th><th>Was</th><th>Saving</th><th></th></tr></thead><tbody>${offers.map((item) => `<tr data-offer-row="${esc(item.id)}"><td><div class="table-product">${imageMarkup(item.img, item.name)}<span><b>${esc(item.name)}</b><small>${esc(item.cat)}</small></span></div></td><td><input class="offer-price" type="number" min="1" step="1" value="${esc(item.price)}" aria-label="Offer price"></td><td><input class="offer-old" type="number" min="0" step="1" value="${esc(item.old || 0)}" aria-label="Original price"></td><td>${percent(item) ? `<span class="status-tag">-${percent(item)}%</span>` : "—"}</td><td><div class="table-actions"><button type="button" data-offer-save="${esc(item.id)}">Save</button><button class="delete-button" type="button" data-offer-remove="${esc(item.id)}">Remove offer</button></div></td></tr>`).join("")}</tbody></table></div>` : emptyState("No offers yet. Add one above.")}</section>`;
+}
+function renderEnquiries() {
+  const allOrders = Object.values(orders).sort((a, b) =>
+      String(b.createdAt).localeCompare(String(a.createdAt)),
+    ),
+    messages = Object.values(contactRequests).sort((a, b) =>
+      String(b.createdAt).localeCompare(String(a.createdAt)),
+    );
+  return `${allOrders.length ? `<section class="admin-card catalog-card"><div class="admin-card-heading"><div><span class="eyebrow">M-PESA STK CHECKOUT</span><h3>Orders <span class="small-count">${allOrders.length}</span></h3></div></div><div class="table-scroll"><table class="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>Paystack</th><th>Items</th><th>Payment</th><th>Receipt email</th></tr></thead><tbody>${allOrders.map((item) => `<tr><td>${esc(String(item.id).slice(0, 12))}<small>${esc(item.createdAt || "")}</small></td><td>${esc(item.customerName)}<small>${esc(item.email)}</small></td><td>${esc(item.phone)}</td><td>${item.items.map((product) => `${esc(product.name)} × ${product.quantity}`).join("<br>")}</td><td><span class="status-tag ${esc(item.paymentStatus)}">${esc(item.paymentStatus)}</span>${item.receiptNumber ? `<small>Paystack ${esc(item.receiptNumber)}</small>` : ""}</td><td>${esc(item.receiptStatus || "pending")}</td></tr>`).join("")}</tbody></table></div></section>` : emptyState("Confirmed Paystack purchases will appear here after secure Paystack setup.")}${messages.length ? `<section class="admin-card catalog-card"><div class="admin-card-heading"><div><span class="eyebrow">CUSTOMER CARE</span><h3>Contact messages <span class="small-count">${messages.length}</span></h3></div></div><div class="table-scroll"><table class="admin-table"><thead><tr><th>Received</th><th>Name</th><th>Contact</th><th>Message</th></tr></thead><tbody>${messages.map((item) => `<tr><td>${esc(item.createdAt)}</td><td>${esc(item.name)}</td><td>${esc(item.contact)}</td><td>${esc(item.message)}</td></tr>`).join("")}</tbody></table></div></section>` : emptyState("Customer contact messages will appear here.")}`;
+}
+function renderSiteEditor() {
+  return `<section class="admin-card content-editor-card"><div class="admin-card-heading"><div><span class="eyebrow">VISUAL SITE EDITOR</span><h3>Edit any page, directly</h3><p>Open the whole website in edit mode: change any text, image, link, header or footer, hide sections, and jump to products. Changes go live automatically.</p></div></div><a class="btn gold" href="/index.html?edit=1">Open the site editor →</a></section>`;
+}
+function renderDefaultPages() {
+  const loaded = JSON.parse(
+    sessionStorage.getItem("firebaseDefaultSeed") || "false",
+  );
+  return `<section class="admin-card setup-card"><span class="eyebrow">STORE SETUP</span><h3>${loaded ? "Store content is connected" : "Connect your starter catalogue"}</h3><p>${loaded ? "Your current catalogue and journal posts are saved to Firebase. Update prices and page copy anytime." : "Loading products and journal posts into Firebase only adds missing information; it will not overwrite products already saved in the database."}</p><button type="button" id="seed-default-content" class="btn gold">${loaded ? "Refresh the starter content" : "Set up the starter catalogue →"}</button></section><section class="admin-card setup-card"><span class="eyebrow">LIVE PAYMENTS</span><h3>Paystack M‑Pesa checkout</h3><p>Checkout is enabled only after the Safaricom callback URL, service-account permissions and Paystack credentials have been configured in Vercel.</p><code>DARAJA_ENVIRONMENT=sandbox</code><small>Use Safaricom sandbox credentials for test checkouts. Switch to production only after completing payment-provider testing.</small></section><section class="admin-card setup-card"><span class="eyebrow">EMAIL RECEIPTS</span><h3>Receipt email setup</h3><p>Receipts are currently turned off, as requested. After verifying a sending domain with Resend, set <code>RESEND_FROM</code> and <code>RESEND_API_KEY</code> in Vercel.</p><small>A Gmail mailbox is not a valid Resend sender. Enable email only after the domain and test delivery are verified.</small></section><section class="admin-card setup-card"><span class="eyebrow">DATABASE ACCESS</span><h3>Protect your Firebase Realtime Database</h3><p>Publish <code>firebase.database.rules.json</code> in Firebase Console &gt; Realtime Database &gt; Rules. The storefront is read-only; the signed-in owner account is the only administrator allowed to change the catalogue or website copy.</p><small>Never set database rules to public write access.</small></section>`;
+}
 
 // ===== Appearance: theme colours, header colour, logo, homepage slideshow (saved to Firebase settings/site) =====
-const DEFAULT_APPEARANCE={accent:'#efb022',primary:'#17283f',header:'#17283f',logoText:'Alibear Automation',logoImage:'',slides:['https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1800&q=75','https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1800&q=75','https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1800&q=75','https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=1800&q=75']};
-let appearance=null,appearanceLoading=false;
-const HEX_COLOUR=/^#[0-9a-f]{6}$/i,SAFE_IMAGE_URL=/^(https:\/\/|\/)[^\s"'()<>\\]*$/i;
-async function loadAppearance(){if(appearanceLoading)return;appearanceLoading=true;try{const saved=(await get(ref(database,'settings/site'))).val()||{};appearance={...DEFAULT_APPEARANCE,...saved,slides:saved.slides?Object.values(saved.slides):[...DEFAULT_APPEARANCE.slides]}}catch(error){appearance={...DEFAULT_APPEARANCE,slides:[...DEFAULT_APPEARANCE.slides]};toast(error.message||'Could not load saved appearance settings.','error')}appearanceLoading=false;if(tab==='Appearance')draw()}
-function renderAppearance(){
-  if(!appearance){loadAppearance();return'<section class="admin-card"><p>Loading your appearance settings…</p></section>'}
-  const a=appearance,colour=(name,label,hint)=>`<label>${label}<small class="field-hint">${hint}</small><input type="color" name="${name}" value="${esc(a[name])}"></label>`;
-  return`<form id="appearance-form"><section class="admin-card admin-form-card"><div class="admin-card-heading"><div><span class="eyebrow">THEME</span><h3>Colours</h3><p>Applied across the whole website for every visitor.</p></div></div><div class="admin-form-grid">${colour('accent','Accent colour','Buttons and highlights')}${colour('primary','Main dark colour','Offer banner, footer, badges')}${colour('header','Header colour','Top bar and header')}<div class="span-two appearance-preview" id="appearance-preview" style="--accent:${esc(a.accent)};--primary:${esc(a.primary)};--hdr:${esc(a.header)}"><div class="ap-header"><img src="${esc(SAFE_IMAGE_URL.test(a.logoImage)?a.logoImage:'')}" alt="" ${SAFE_IMAGE_URL.test(a.logoImage)?'':'hidden'}><b>${esc(a.logoText||'')}</b></div><div class="ap-body"><span class="ap-btn">Shop now</span><span class="ap-banner">Offer banner</span></div></div></div></section>
-  <section class="admin-card admin-form-card"><div class="admin-card-heading"><div><span class="eyebrow">BRANDING</span><h3>Logo</h3><p>Shown centred in the header and footer. Until you add an image, a placeholder is shown.</p></div></div><div class="admin-form-grid"><label>Logo text<input name="logoText" maxlength="40" value="${esc(a.logoText)}" placeholder="Alibear Automation"></label><label>Upload logo image<input name="logoFile" type="file" accept="image/jpeg,image/png,image/webp"></label><label class="span-two">Logo image address<input name="logoImage" value="${esc(a.logoImage)}" placeholder="https://… (filled automatically after upload)"></label></div></section>
-  <section class="admin-card admin-form-card"><div class="admin-card-heading"><div><span class="eyebrow">HOMEPAGE</span><h3>Slideshow images</h3><p>Full-width hero images, shown in this order. Up to 8.</p></div></div><div class="slide-admin-list">${a.slides.map((url,index)=>`<div class="slide-admin-row"><img src="${esc(url)}" alt="Slide ${index+1}" onerror="this.style.visibility='hidden'"><input name="slide" value="${esc(url)}" aria-label="Slide ${index+1} image address"><div class="table-actions"><button type="button" data-slide-act="up" data-index="${index}" ${index===0?'disabled':''} aria-label="Move up">↑</button><button type="button" data-slide-act="down" data-index="${index}" ${index===a.slides.length-1?'disabled':''} aria-label="Move down">↓</button><button type="button" class="delete-button" data-slide-act="remove" data-index="${index}">Remove</button></div></div>`).join('')||'<p class="empty-state">No slides yet. The default images will be used.</p>'}</div><div class="admin-form-grid slide-add"><label>Upload a slide<input name="slideFile" type="file" accept="image/jpeg,image/png,image/webp" ${a.slides.length>=8?'disabled':''}></label><label>Or add by address<input name="slideUrl" placeholder="https://…"></label><div class="span-two"><button type="button" class="btn" data-slide-act="add" ${a.slides.length>=8?'disabled':''}>Add image</button></div></div></section>
-  <section class="admin-card admin-form-card"><div class="appearance-actions"><button class="btn gold" type="submit">Save appearance →</button><button class="btn" type="button" data-appearance-reset>Reset to defaults</button><a class="text-link" href="/editor.html?page=home">Edit any image on the site visually →</a></div></section></form>`}
-function readAppearance(form){const f=form.elements;appearance={...appearance,accent:f.accent.value,primary:f.primary.value,header:f.header.value,logoText:f.logoText.value.trim(),logoImage:f.logoImage.value.trim(),slides:[...form.querySelectorAll('input[name="slide"]')].map(input=>input.value.trim()).filter(Boolean)}}
-function wireAppearance(){
-  const form=$('appearance-form');if(!form)return;
-  const preview=$('appearance-preview');
-  form.addEventListener('input',event=>{if(event.target.type==='color'&&preview){preview.style.setProperty({accent:'--accent',primary:'--primary',header:'--hdr'}[event.target.name],event.target.value)}});
-  form.addEventListener('change',async event=>{
-    const input=event.target;if(input.type!=='file'||!input.files[0])return;
-    try{toast('Uploading image…');const url=await uploadImage(input.files[0]);readAppearance(form);if(input.name==='logoFile')appearance.logoImage=url;else if(input.name==='slideFile'&&appearance.slides.length<8)appearance.slides.push(url);draw();toast('Image uploaded. Remember to save.','success')}catch(error){input.value='';toast(error.message||'Image upload failed.','error')}
-  });
-  form.addEventListener('click',event=>{
-    if(event.target.closest('[data-appearance-reset]')){if(!confirm('Reset colours, logo and slideshow to the original look? This updates the live site when you save.'))return;appearance={...DEFAULT_APPEARANCE,slides:[...DEFAULT_APPEARANCE.slides]};draw();return}
-    const button=event.target.closest('[data-slide-act]');if(!button)return;
-    readAppearance(form);const slides=appearance.slides,index=Number(button.dataset.index),act=button.dataset.slideAct;
-    if(act==='remove')slides.splice(index,1);
-    else if(act==='up'&&index>0)[slides[index-1],slides[index]]=[slides[index],slides[index-1]];
-    else if(act==='down'&&index<slides.length-1)[slides[index+1],slides[index]]=[slides[index],slides[index+1]];
-    else if(act==='add'){const url=form.elements.slideUrl.value.trim();if(!SAFE_IMAGE_URL.test(url))return toast('Enter a full https:// image address.','error');if(slides.length>=8)return toast('You can have up to 8 slides.','error');slides.push(url)}
-    draw();
-  });
-  form.addEventListener('submit',async event=>{
-    event.preventDefault();readAppearance(form);const a=appearance;
-    if(![a.accent,a.primary,a.header].every(value=>HEX_COLOUR.test(value)))return toast('Choose valid colours.','error');
-    if(a.logoImage&&!SAFE_IMAGE_URL.test(a.logoImage))return toast('The logo image address must start with https://','error');
-    if(a.slides.some(url=>!SAFE_IMAGE_URL.test(url)))return toast('Every slide address must start with https://','error');
-    const usesDefaultSlides=a.slides.length===DEFAULT_APPEARANCE.slides.length&&a.slides.every((url,index)=>url===DEFAULT_APPEARANCE.slides[index]);
-    try{
-      await update(ref(database,'settings/site'),{accent:a.accent,primary:a.primary,header:a.header,logoText:a.logoText,logoImage:a.logoImage||null,slides:a.slides.length&&!usesDefaultSlides?Object.fromEntries(a.slides.map((url,index)=>[index,url])):null});
-            try{localStorage.removeItem('siteSettings')}catch{}
-      toast('Appearance saved. Your website now uses it.','success');
-    }catch(error){toast(error.message||'Could not save appearance.','error')}
-  });
+const DEFAULT_APPEARANCE = {
+  accent: "#efb022",
+  primary: "#17283f",
+  header: "#17283f",
+  headerText: "#ffffff",
+  footerBg: "#17283f",
+  footerText: "#e1e5e7",
+  bodyBg: "#faf9f6",
+  bodyText: "#242a35",
+  logoText: "Alibear Automation",
+  logoImage: "",
+  slides: [
+    "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1800&q=75",
+    "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1800&q=75",
+    "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1800&q=75",
+    "https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=1800&q=75",
+  ],
+};
+let appearance = null,
+  appearanceLoading = false;
+const HEX_COLOUR = /^#[0-9a-f]{6}$/i,
+  SAFE_IMAGE_URL = /^(https:\/\/|\/)[^\s"'()<>\\]*$/i;
+async function loadAppearance() {
+  if (appearanceLoading) return;
+  appearanceLoading = true;
+  try {
+    const saved = (await get(ref(database, "settings/site"))).val() || {};
+    appearance = {
+      ...DEFAULT_APPEARANCE,
+      ...saved,
+      slides: saved.slides
+        ? Object.values(saved.slides)
+        : [...DEFAULT_APPEARANCE.slides],
+    };
+  } catch (error) {
+    appearance = {
+      ...DEFAULT_APPEARANCE,
+      slides: [...DEFAULT_APPEARANCE.slides],
+    };
+    toast(
+      error.message || "Could not load saved appearance settings.",
+      "error",
+    );
+  }
+  appearanceLoading = false;
+  if (tab === "Appearance") draw();
 }
-function draw(){const login=$('login-panel'),panel=$('admin-panel');login.hidden=ownerConfirmed;panel.hidden=!ownerConfirmed;$('admin-logout').hidden=!ownerConfirmed;if(!ownerConfirmed)return;const cards=[['Products',products().length,'◈','blue'],['Offers',products().filter(item=>item.flash).length,'✳','gold'],['Journal posts',journal().length,'▤','cream'],['Paid orders',Object.values(orders).filter(item=>item.paymentStatus==='paid').length,'✓','green']];$('admin-stats').innerHTML=cards.map(([label,value,icon,color])=>`<article class="stat-card ${color}"><span>${icon}</span><small>${label}</small><b>${value}</b><i>in your store</i></article>`).join('');const items=['Dashboard','Products','Journal','Appearance','Website text','Enquiries','Settings'];$('admin-tabs').innerHTML='<span class="admin-nav-label">STORE MANAGEMENT</span>'+items.map(item=>`<button type="button" class="${item===tab?'active':''}" data-tab="${item}"><span>${{'Dashboard':'⌂','Products':'◈','Journal':'▤','Appearance':'◐','Website text':'✎','Enquiries':'✉','Settings':'⚙'}[item]}</span>${item}${item==='Enquiries'&&Object.keys(orders).length?`<small>${Object.keys(orders).length}</small>`:''}</button>`).join('')+`<div class="admin-nav-note"><b>Alibear Automation</b><small>Smart living, made simple.</small><a href="/index.html">Open storefront →</a></div>`;const descriptions={Dashboard:['YOUR STORE','Keep an eye on orders, listings and customer care.'],Products:['PRODUCT CATALOGUE','Edit existing products or add new Cloudinary-hosted photos.'],Journal:['ONE SHARED JOURNAL','Publish a guide or a news update to the same page.'], Appearance:['LOOK & FEEL','Theme colours, header colour, logo and the homepage slideshow.'],'Website text':['EDITABLE STOREFRONT','Click any visible text to change it from the admin panel.'],Enquiries:['CUSTOMER CARE','See contact requests and Paystack order status.'],Settings:['STORE CONFIGURATION','Review Firebase, Paystack, Cloudinary and email setup.']},[eyebrow,subtitle]=descriptions[tab];$('admin-heading').innerHTML=`<div><span class="eyebrow">${eyebrow}</span><h2>${tab}</h2><p>${subtitle}</p></div>`;$('admin-content').innerHTML=tab==='Dashboard'?renderDashboard():tab==='Products'?renderProducts():tab==='Journal'?renderJournal():tab==='Appearance'?renderAppearance():tab==='Website text'?renderSiteEditor():tab==='Enquiries'?renderEnquiries():renderDefaultPages();wireTab()}
-function replaceProductsForm(){const form=$('product-form');form?.reset();window.editingProductId=null;draw()}
-function uploadImage(file){if(!file)throw new Error('Choose a product image to upload.');if(file.size>8*1024*1024)throw new Error('Each product photo must be smaller than 8 MB.');if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Upload a JPG, PNG or WebP photo.');return authenticatedRequest('/api/cloudinary-sign',{method:'POST',body:'{}'}).then(async signing=>{const payload=new FormData();payload.append('file',file);payload.append('api_key',signing.apiKey);payload.append('timestamp',String(signing.timestamp));payload.append('signature',signing.signature);payload.append('folder',signing.folder);const response=await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(signing.cloudName)}/image/upload`,{method:'POST',body:payload});const result=await response.json();if(!response.ok||!result.secure_url)throw new Error(result.error?.message||'The Cloudinary upload failed. Check your Cloudinary settings.');return result.secure_url})}
-async function saveProduct(event){event.preventDefault();const form=event.currentTarget,name=form.elements.name.value.trim(),cat=form.elements.category.value.trim(),price=Number(form.elements.price.value),desc=form.elements.description.value.trim(),id=form.dataset.editingId||String(Date.now());if(!name||!cat||!Number.isSafeInteger(price)||price<1||!desc)return toast('Enter a product name, category, valid price and short description.','error');const existing=products().find(item=>String(item.id)===id);try{const file=form.elements.file.files[0],img=file?await uploadImage(file):existing?.img;if(!img)return toast('Upload a product photo to Cloudinary before publishing.','error');const item={...(existing||{}),id,name,cat,price,old:Number(form.elements.old.value)||0,img,alt:form.elements.alt.value.trim()||name,desc,longDesc:form.elements.longDesc.value.trim(),features:form.elements.features.value.split('\n').map(value=>value.trim()).filter(Boolean),flash:form.elements.flash.checked?1:0};await update(ref(database,`products/${id}`),item);D.products=products().filter(product=>String(product.id)!==id);D.products.unshift(item);window.editingProductId=null;draw();toast(existing?'Product changes saved.':'Product added to your Cloudinary-backed shop.','success')}catch(error){toast(error.message||'Could not save this product.','error')}}
-async function saveJournal(event){event.preventDefault();const form=event.currentTarget,title=form.elements.title.value.trim(),body=form.elements.body.value.trim();if(!title||!body)return toast('Add a headline and the journal post before publishing.','error');try{const file=form.elements.file.files[0],img=file?await uploadImage(file):'',id=crypto.randomUUID(),article={id,t:title,x:body,d:form.elements.date.value.trim()||new Date().toLocaleDateString(),type:form.elements.type.value,img};await update(ref(database,`journal/${id}`),article);D.journal=[article,...journal()];draw();toast('Your post is published in the shared journal.','success')}catch(error){toast(error.message||'Could not publish this post.','error')}}
-async function editWebsiteText(event){if(event.origin!==location.origin||event.data?.type!=='aurum-content-change')return;const page=event.data.page,key=event.data.key,value=String(event.data.value||'');if(!['shared',...PAGE_OPTIONS.map(([value])=>value)].includes(page)||!/^[a-z0-9_-]{1,300}$/.test(key)||value.length>3000)return;const status=$('content-save-status');if(status)status.textContent='Saving your website change…';const timer=saveTimers.get(`${page}:${key}`);clearTimeout(timer);saveTimers.set(`${page}:${key}`,setTimeout(async()=>{try{await update(ref(database,`siteContent/${page}`),{[key]:value});if(status)status.textContent='Website text saved to Firebase.'}catch(error){if(status)status.textContent=`Could not save: ${error.message}`}},450))}
-function wireTab(){ $('product-form')?.addEventListener('submit',saveProduct);wireAppearance();$('journal-form')?.addEventListener('submit',saveJournal);$('product-search')?.addEventListener('input',event=>{const selection=event.target.selectionStart;query=event.target.value;draw();const input=$('product-search');input?.focus();input?.setSelectionRange(selection,selection)});$('content-preview-page')?.addEventListener('change',event=>{previewPage=event.target.value;const frame=$('content-preview');if(frame)frame.src=`/${previewPage}.html?edit=1`});$('content-preview')?.addEventListener('load',async event=>{try{const[shared,pages]=await Promise.all([get(ref(database,'siteContent/shared')),get(ref(database,`siteContent/${previewPage}`))]);event.target.contentWindow.postMessage({type:'aurum-content-load',shared:shared.val()||{},pages:{[previewPage]:pages.val()||{}}},location.origin)}catch(error){toast(error.message||'Could not load editable website text.','error')}});$('seed-default-content')?.addEventListener('click',async()=>{try{await initializeStore();const articleSnapshot=await get(ref(database,'journal'));if(!articleSnapshot.exists())return toast('The journal could not be loaded.','error');sessionStorage.setItem('firebaseDefaultSeed','true');draw();toast('Your original products and combined journal are connected to Firebase.','success')}catch(error){toast(error.message||'Could not connect the starter catalogue.','error')}});$('admin-content')?.addEventListener('click',event=>{const edit=event.target.closest('[data-edit-product]'),remove=event.target.closest('[data-delete]'),cancel=event.target.closest('[data-cancel-edit]');if(cancel){window.editingProductId=null;draw();return}if(edit){window.editingProductId=edit.dataset.editProduct;draw();$('product-form')?.scrollIntoView({behavior:'smooth',block:'start'});return}if(!remove)return;if(remove.dataset.delete==='product'){const item=products().find(product=>String(product.id)===remove.dataset.id);if(!item||!confirm(`Remove "${item.name}" from the shop?`))return;update(ref(database,`products/${item.id}`),null).then(()=>{D.products=products().filter(product=>String(product.id)!==String(item.id));draw();toast('The product has been removed.','success')}).catch(error=>toast(error.message||'Could not remove this product.','error'))}else if(remove.dataset.delete==='journal'){const item=journal().find(article=>String(article.id)===remove.dataset.id);if(item&&confirm(`Remove "${item.t}" from the journal?`))update(ref(database,`journal/${item.id}`),null).then(()=>{D.journal=journal().filter(article=>String(article.id)!==String(item.id));draw();toast('The journal post has been removed.','success')}).catch(error=>toast(error.message||'Could not remove this post.','error'))}})}
-
-async function handleAuth(event){
-  event.preventDefault();
-  const email=$('admin-email').value.trim().toLowerCase(),password=$('admin-password').value;
-  const submit=$('admin-auth-submit');
-  submit.disabled=true;
-  try{
-    if(authMode==='reset'){
-      await sendPasswordResetEmail(auth,email);
-      sayAuth('If an account exists for this email, Firebase has sent a password reset link.','success');
+function renderAppearance() {
+  if (!appearance) {
+    loadAppearance();
+    return '<section class="admin-card"><p>Loading your appearance settings…</p></section>';
+  }
+  const a = appearance,
+    colour = (name, label, hint) =>
+      `<label>${label}<small class="field-hint">${hint}</small><input type="color" name="${name}" value="${esc(a[name])}"></label>`;
+  return `<form id="appearance-form"><section class="admin-card admin-form-card"><div class="admin-card-heading"><div><span class="eyebrow">THEME</span><h3>Colours</h3><p>Applied across the whole website for every visitor.</p></div></div><div class="admin-form-grid">${colour("accent", "Accent colour", "Buttons and highlights")}${colour("primary", "Main dark colour", "Offer banner, footer, badges")}${colour("header", "Header colour", "Top bar and header background")}${colour("headerText", "Header text colour", "Menu links and header text")}${colour("bodyBg", "Page background", "Behind every page")}${colour("bodyText", "Page text colour", "Default text colour")}${colour("footerBg", "Footer colour", "Footer background")}${colour("footerText", "Footer text colour", "Footer text and links")}<div class="span-two appearance-preview" id="appearance-preview" style="--accent:${esc(a.accent)};--primary:${esc(a.primary)};--hdr:${esc(a.header)}"><div class="ap-header"><img src="${esc(SAFE_IMAGE_URL.test(a.logoImage) ? a.logoImage : "")}" alt="" ${SAFE_IMAGE_URL.test(a.logoImage) ? "" : "hidden"}><b>${esc(a.logoText || "")}</b></div><div class="ap-body"><span class="ap-btn">Shop now</span><span class="ap-banner">Offer banner</span></div></div></div></section>
+  <section class="admin-card admin-form-card"><div class="admin-card-heading"><div><span class="eyebrow">BRANDING</span><h3>Logo</h3><p>Shown centred in the header and footer. Until you add an image, a placeholder is shown.</p></div></div><div class="admin-form-grid"><label>Logo text<input name="logoText" maxlength="40" value="${esc(a.logoText)}" placeholder="Alibear Automation"></label><label>Upload logo image<input name="logoFile" type="file" accept="image/jpeg,image/png,image/webp"></label><label class="span-two">Logo image address<input name="logoImage" value="${esc(a.logoImage)}" placeholder="https://… (filled automatically after upload)"></label></div></section>
+  <section class="admin-card admin-form-card"><div class="admin-card-heading"><div><span class="eyebrow">HOMEPAGE</span><h3>Slideshow images</h3><p>Full-width hero images, shown in this order. Up to 8.</p></div></div><div class="slide-admin-list">${a.slides.map((url, index) => `<div class="slide-admin-row"><img src="${esc(url)}" alt="Slide ${index + 1}" onerror="this.style.visibility='hidden'"><input name="slide" value="${esc(url)}" aria-label="Slide ${index + 1} image address"><div class="table-actions"><button type="button" data-slide-act="up" data-index="${index}" ${index === 0 ? "disabled" : ""} aria-label="Move up">↑</button><button type="button" data-slide-act="down" data-index="${index}" ${index === a.slides.length - 1 ? "disabled" : ""} aria-label="Move down">↓</button><button type="button" class="delete-button" data-slide-act="remove" data-index="${index}">Remove</button></div></div>`).join("") || '<p class="empty-state">No slides yet. The default images will be used.</p>'}</div><div class="admin-form-grid slide-add"><label>Upload a slide<input name="slideFile" type="file" accept="image/jpeg,image/png,image/webp" ${a.slides.length >= 8 ? "disabled" : ""}></label><label>Or add by address<input name="slideUrl" placeholder="https://…"></label><div class="span-two"><button type="button" class="btn" data-slide-act="add" ${a.slides.length >= 8 ? "disabled" : ""}>Add image</button></div></div></section>
+  <section class="admin-card admin-form-card"><div class="appearance-actions"><button class="btn gold" type="submit">Save appearance →</button><button class="btn" type="button" data-appearance-reset>Reset to defaults</button><a class="text-link" href="/index.html?edit=1?page=home">Edit any image on the site visually →</a></div></section></form>`;
+}
+function readAppearance(form) {
+  const f = form.elements;
+  appearance = {
+    ...appearance,
+    accent: f.accent.value,
+    primary: f.primary.value,
+    header: f.header.value,
+    headerText: f.headerText.value,
+    footerBg: f.footerBg.value,
+    footerText: f.footerText.value,
+    bodyBg: f.bodyBg.value,
+    bodyText: f.bodyText.value,
+    logoText: f.logoText.value.trim(),
+    logoImage: f.logoImage.value.trim(),
+    slides: [...form.querySelectorAll('input[name="slide"]')]
+      .map((input) => input.value.trim())
+      .filter(Boolean),
+  };
+}
+function wireAppearance() {
+  const form = $("appearance-form");
+  if (!form) return;
+  const preview = $("appearance-preview");
+  form.addEventListener("input", (event) => {
+    if (event.target.type === "color" && preview) {
+      const variable = {
+        accent: "--accent",
+        primary: "--primary",
+        header: "--hdr",
+      }[event.target.name];
+      if (variable) preview.style.setProperty(variable, event.target.value);
+    }
+  });
+  form.addEventListener("change", async (event) => {
+    const input = event.target;
+    if (input.type !== "file" || !input.files[0]) return;
+    try {
+      toast("Uploading image…");
+      const url = await uploadImage(input.files[0]);
+      readAppearance(form);
+      if (input.name === "logoFile") appearance.logoImage = url;
+      else if (input.name === "slideFile" && appearance.slides.length < 8)
+        appearance.slides.push(url);
+      draw();
+      toast("Image uploaded. Remember to save.", "success");
+    } catch (error) {
+      input.value = "";
+      toast(error.message || "Image upload failed.", "error");
+    }
+  });
+  form.addEventListener("click", (event) => {
+    if (event.target.closest("[data-appearance-reset]")) {
+      if (
+        !confirm(
+          "Reset colours, logo and slideshow to the original look? This updates the live site when you save.",
+        )
+      )
+        return;
+      appearance = {
+        ...DEFAULT_APPEARANCE,
+        slides: [...DEFAULT_APPEARANCE.slides],
+      };
+      draw();
       return;
     }
-    if(authMode==='signup'){
-      const displayName=$('admin-name').value.trim();
-      if(displayName.length<2){sayAuth('Enter your name to create an account.','error');return}
-      if(password.length<8)return sayAuth('Use at least eight characters for your password.','error');
-      const credential=await createUserWithEmailAndPassword(auth,email,password);
-      await updateProfile(credential.user,{displayName});
-      try{
-        await sendEmailVerification(credential.user);
-      }catch(error){
-        console.warn('Verification email not sent:',error?.code||error);
+    const button = event.target.closest("[data-slide-act]");
+    if (!button) return;
+    readAppearance(form);
+    const slides = appearance.slides,
+      index = Number(button.dataset.index),
+      act = button.dataset.slideAct;
+    if (act === "remove") slides.splice(index, 1);
+    else if (act === "up" && index > 0)
+      [slides[index - 1], slides[index]] = [slides[index], slides[index - 1]];
+    else if (act === "down" && index < slides.length - 1)
+      [slides[index + 1], slides[index]] = [slides[index], slides[index + 1]];
+    else if (act === "add") {
+      const url = form.elements.slideUrl.value.trim();
+      if (!SAFE_IMAGE_URL.test(url))
+        return toast("Enter a full https:// image address.", "error");
+      if (slides.length >= 8)
+        return toast("You can have up to 8 slides.", "error");
+      slides.push(url);
+    }
+    draw();
+  });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    readAppearance(form);
+    const a = appearance;
+    const colourKeys = ["accent", "primary", "header", "headerText", "footerBg", "footerText", "bodyBg", "bodyText"];
+    if (!colourKeys.every((key) => HEX_COLOUR.test(a[key])))
+      return toast("Choose valid colours.", "error");
+    if (a.logoImage && !SAFE_IMAGE_URL.test(a.logoImage))
+      return toast("The logo image address must start with https://", "error");
+    if (a.slides.some((url) => !SAFE_IMAGE_URL.test(url)))
+      return toast("Every slide address must start with https://", "error");
+    const usesDefaultSlides =
+      a.slides.length === DEFAULT_APPEARANCE.slides.length &&
+      a.slides.every((url, index) => url === DEFAULT_APPEARANCE.slides[index]);
+    try {
+      await update(ref(database, "settings/site"), {
+        accent: a.accent,
+        primary: a.primary,
+        header: a.header,
+        // Only store a colour when it differs from the built-in look.
+        ...Object.fromEntries(
+          ["headerText", "footerBg", "footerText", "bodyBg", "bodyText"].map(
+            (key) => [key, a[key] === DEFAULT_APPEARANCE[key] ? null : a[key]],
+          ),
+        ),
+        logoText: a.logoText,
+        logoImage: a.logoImage || null,
+        slides:
+          a.slides.length && !usesDefaultSlides
+            ? Object.fromEntries(a.slides.map((url, index) => [index, url]))
+            : null,
+      });
+      try {
+        localStorage.removeItem("siteSettings");
+      } catch {}
+      changed();
+      toast("Appearance saved. Your website now uses it.", "success");
+    } catch (error) {
+      toast(error.message || "Could not save appearance.", "error");
+    }
+  });
+}
+function draw() {
+  const login = $("login-panel"),
+    panel = $("admin-panel");
+  login.hidden = ownerConfirmed;
+  panel.hidden = !ownerConfirmed;
+  $("admin-logout").hidden = !ownerConfirmed;
+  if (!ownerConfirmed) return;
+  const cards = [
+    ["Products", products().length, "◈", "blue"],
+    ["Offers", products().filter((item) => item.flash).length, "✳", "gold"],
+    ["Journal posts", journal().length, "▤", "cream"],
+    [
+      "Paid orders",
+      Object.values(orders).filter((item) => item.paymentStatus === "paid")
+        .length,
+      "✓",
+      "green",
+    ],
+  ];
+  $("admin-stats").innerHTML = cards
+    .map(
+      ([label, value, icon, color]) =>
+        `<article class="stat-card ${color}"><span>${icon}</span><small>${label}</small><b>${value}</b><i>in your store</i></article>`,
+    )
+    .join("");
+  const items = [
+    "Dashboard",
+    "Products",
+    "Offers",
+    "Journal",
+    "Appearance",
+    "Enquiries",
+    "Settings",
+  ];
+  $("admin-tabs").innerHTML =
+    '<span class="admin-nav-label">STORE MANAGEMENT</span>' +
+    items
+      .map(
+        (item) =>
+          `<button type="button" class="${item === tab ? "active" : ""}" data-tab="${item}"><span>${{ Dashboard: "⌂", Products: "◈", Offers: "✳", Journal: "▤", Appearance: "◐", Enquiries: "✉", Settings: "⚙" }[item]}</span>${item}${item === "Enquiries" && Object.keys(orders).length ? `<small>${Object.keys(orders).length}</small>` : ""}</button>`,
+      )
+      .join("") +
+    `<div class="admin-nav-note"><b>Alibear Automation</b><small>Smart living, made simple.</small><a href="/index.html?edit=1" target="_top">✎ Edit pages on the site →</a></div>`;
+  const descriptions = {
+      Dashboard: [
+        "YOUR STORE",
+        "Keep an eye on orders, listings and customer care.",
+      ],
+      Products: [
+        "PRODUCT CATALOGUE",
+        "Edit existing products or add new Cloudinary-hosted photos.",
+      ],
+      Offers: [
+        "OFFERS & DEALS",
+        "Add or remove offers and change their prices.",
+      ],
+      Journal: [
+        "ONE SHARED JOURNAL",
+        "Publish a guide or a news update to the same page.",
+      ],
+      Appearance: [
+        "LOOK & FEEL",
+        "Theme colours, header colour, logo and the homepage slideshow.",
+      ],
+      Enquiries: [
+        "CUSTOMER CARE",
+        "See contact requests and Paystack order status.",
+      ],
+      Settings: [
+        "STORE CONFIGURATION",
+        "Review Firebase, Paystack, Cloudinary and email setup.",
+      ],
+    },
+    [eyebrow, subtitle] = descriptions[tab];
+  $("admin-heading").innerHTML =
+    `<div><span class="eyebrow">${eyebrow}</span><h2>${tab}</h2><p>${subtitle}</p></div>`;
+  $("admin-content").innerHTML =
+    tab === "Dashboard"
+      ? renderDashboard()
+      : tab === "Products"
+        ? renderProducts()
+        : tab === "Offers"
+          ? renderOffers()
+          : tab === "Journal"
+            ? renderJournal()
+            : tab === "Appearance"
+              ? renderAppearance()
+              : tab === "Enquiries"
+                ? renderEnquiries()
+                : renderDefaultPages();
+  wireTab();
+}
+function replaceProductsForm() {
+  const form = $("product-form");
+  form?.reset();
+  window.editingProductId = null;
+  draw();
+}
+function uploadImage(file) {
+  if (!file) throw new Error("Choose a product image to upload.");
+  if (file.size > 8 * 1024 * 1024)
+    throw new Error("Each product photo must be smaller than 8 MB.");
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type))
+    throw new Error("Upload a JPG, PNG or WebP photo.");
+  return authenticatedRequest("/api/cloudinary-sign", {
+    method: "POST",
+    body: "{}",
+  }).then(async (signing) => {
+    const payload = new FormData();
+    payload.append("file", file);
+    payload.append("api_key", signing.apiKey);
+    payload.append("timestamp", String(signing.timestamp));
+    payload.append("signature", signing.signature);
+    payload.append("folder", signing.folder);
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${encodeURIComponent(signing.cloudName)}/image/upload`,
+      { method: "POST", body: payload },
+    );
+    const result = await response.json();
+    if (!response.ok || !result.secure_url)
+      throw new Error(
+        result.error?.message ||
+          "The Cloudinary upload failed. Check your Cloudinary settings.",
+      );
+    return result.secure_url;
+  });
+}
+async function saveProduct(event) {
+  event.preventDefault();
+  const form = event.currentTarget,
+    name = form.elements.name.value.trim(),
+    cat = form.elements.category.value.trim(),
+    price = Number(form.elements.price.value),
+    desc = form.elements.description.value.trim(),
+    id = form.dataset.editingId || String(Date.now());
+  if (!name || !cat || !Number.isSafeInteger(price) || price < 1 || !desc)
+    return toast(
+      "Enter a product name, category, valid price and short description.",
+      "error",
+    );
+  const existing = products().find((item) => String(item.id) === id);
+  try {
+    const file = form.elements.file.files[0],
+      img = file ? await uploadImage(file) : existing?.img;
+    if (!img)
+      return toast(
+        "Upload a product photo to Cloudinary before publishing.",
+        "error",
+      );
+    const item = {
+      ...(existing || {}),
+      id,
+      name,
+      cat,
+      price,
+      old: Number(form.elements.old.value) || 0,
+      img,
+      alt: form.elements.alt.value.trim() || name,
+      desc,
+      longDesc: form.elements.longDesc.value.trim(),
+      features: form.elements.features.value
+        .split("\n")
+        .map((value) => value.trim())
+        .filter(Boolean),
+      flash: form.elements.flash.checked ? 1 : 0,
+    };
+    await update(ref(database, `products/${id}`), item);
+    D.products = products().filter((product) => String(product.id) !== id);
+    D.products.unshift(item);
+    window.editingProductId = null;
+    window.newOffer = false;
+    changed();
+    draw();
+    toast(
+      existing
+        ? "Product changes saved."
+        : "Product added to your Cloudinary-backed shop.",
+      "success",
+    );
+  } catch (error) {
+    toast(error.message || "Could not save this product.", "error");
+  }
+}
+async function saveJournal(event) {
+  event.preventDefault();
+  const form = event.currentTarget,
+    title = form.elements.title.value.trim(),
+    body = form.elements.body.value.trim();
+  if (!title || !body)
+    return toast(
+      "Add a headline and the journal post before publishing.",
+      "error",
+    );
+  try {
+    const file = form.elements.file.files[0],
+      img = file ? await uploadImage(file) : "",
+      id = crypto.randomUUID(),
+      article = {
+        id,
+        t: title,
+        x: body,
+        d: form.elements.date.value.trim() || new Date().toLocaleDateString(),
+        type: form.elements.type.value,
+        img,
+      };
+    await update(ref(database, `journal/${id}`), article);
+    D.journal = [article, ...journal()];
+    changed();
+    draw();
+    toast("Your post is published in the shared journal.", "success");
+  } catch (error) {
+    toast(error.message || "Could not publish this post.", "error");
+  }
+}
+async function editWebsiteText(event) {
+  if (
+    event.origin !== location.origin ||
+    event.data?.type !== "aurum-content-change"
+  )
+    return;
+  const page = event.data.page,
+    key = event.data.key,
+    value = String(event.data.value || "");
+  if (
+    !["shared", ...PAGE_OPTIONS.map(([value]) => value)].includes(page) ||
+    !/^[a-z0-9_-]{1,300}$/.test(key) ||
+    value.length > 3000
+  )
+    return;
+  const status = $("content-save-status");
+  if (status) status.textContent = "Saving your website change…";
+  const timer = saveTimers.get(`${page}:${key}`);
+  clearTimeout(timer);
+  saveTimers.set(
+    `${page}:${key}`,
+    setTimeout(async () => {
+      try {
+        await update(ref(database, `siteContent/${page}`), { [key]: value });
+        if (status) status.textContent = "Website text saved to Firebase.";
+      } catch (error) {
+        if (status) status.textContent = `Could not save: ${error.message}`;
+      }
+    }, 450),
+  );
+}
+function wireTab() {
+  $("product-form")?.addEventListener("submit", saveProduct);
+  wireAppearance();
+  $("journal-form")?.addEventListener("submit", saveJournal);
+  $("product-search")?.addEventListener("input", (event) => {
+    const selection = event.target.selectionStart;
+    query = event.target.value;
+    draw();
+    const input = $("product-search");
+    input?.focus();
+    input?.setSelectionRange(selection, selection);
+  });
+  $("content-preview-page")?.addEventListener("change", (event) => {
+    previewPage = event.target.value;
+    const frame = $("content-preview");
+    if (frame) frame.src = `/${previewPage}.html?edit=1`;
+  });
+  $("content-preview")?.addEventListener("load", async (event) => {
+    try {
+      const [shared, pages] = await Promise.all([
+        get(ref(database, "siteContent/shared")),
+        get(ref(database, `siteContent/${previewPage}`)),
+      ]);
+      event.target.contentWindow.postMessage(
+        {
+          type: "aurum-content-load",
+          shared: shared.val() || {},
+          pages: { [previewPage]: pages.val() || {} },
+        },
+        location.origin,
+      );
+    } catch (error) {
+      toast(error.message || "Could not load editable website text.", "error");
+    }
+  });
+  $("seed-default-content")?.addEventListener("click", async () => {
+    try {
+      await initializeStore();
+      const articleSnapshot = await get(ref(database, "journal"));
+      if (!articleSnapshot.exists())
+        return toast("The journal could not be loaded.", "error");
+      sessionStorage.setItem("firebaseDefaultSeed", "true");
+      draw();
+      toast(
+        "Your original products and combined journal are connected to Firebase.",
+        "success",
+      );
+    } catch (error) {
+      toast(
+        error.message || "Could not connect the starter catalogue.",
+        "error",
+      );
+    }
+  });
+  $("offer-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const f = event.currentTarget.elements,
+      id = f.product.value,
+      price = Number(f.price.value),
+      old = Number(f.old.value);
+    if (!Number.isSafeInteger(price) || price < 1 || !Number.isSafeInteger(old) || old <= price)
+      return toast("The original price must be higher than the offer price.", "error");
+    try {
+      await update(ref(database, `products/${id}`), { flash: 1, price, old });
+      const item = products().find((product) => String(product.id) === String(id));
+      if (item) Object.assign(item, { flash: 1, price, old });
+      changed();
+      draw();
+      toast("Added to your offers.", "success");
+    } catch (error) {
+      toast(error.message || "Could not add this offer.", "error");
+    }
+  });
+  $("admin-content")?.addEventListener("click", async (event) => {
+    const newOffer = event.target.closest("[data-new-offer]"),
+      offerSave = event.target.closest("[data-offer-save]"),
+      offerRemove = event.target.closest("[data-offer-remove]");
+    if (newOffer) {
+      window.newOffer = true;
+      window.editingProductId = null;
+      tab = "Products";
+      draw();
+      return;
+    }
+    if (offerSave || offerRemove) {
+      const id = (offerSave || offerRemove).dataset.offerSave || (offerSave || offerRemove).dataset.offerRemove,
+        row = event.target.closest("tr"),
+        item = products().find((product) => String(product.id) === String(id));
+      if (!item) return;
+      try {
+        let values;
+        if (offerRemove) {
+          if (!confirm(`Remove "${item.name}" from the offers? It stays in the shop.`)) return;
+          values = { flash: 0 };
+        } else {
+          const price = Number(row.querySelector(".offer-price").value),
+            old = Number(row.querySelector(".offer-old").value) || 0;
+          if (!Number.isSafeInteger(price) || price < 1) return toast("Enter a valid offer price.", "error");
+          values = { price, old };
+        }
+        await update(ref(database, `products/${id}`), values);
+        Object.assign(item, values);
+        changed();
+        draw();
+        toast(offerRemove ? "Offer removed." : "Offer updated.", "success");
+      } catch (error) {
+        toast(error.message || "Could not update this offer.", "error");
       }
       return;
     }
-    await signInWithEmailAndPassword(auth,email,password);
-  }catch(error){
-    if(authMode==='signup'&&error?.code==='auth/email-already-in-use'){
-      setAuthMode('signin');
-      $('admin-email').value=email;
-      sayAuth(authError(error),'error');
-    }else{
-      sayAuth(authError(error),'error');
+    const edit = event.target.closest("[data-edit-product]"),
+      remove = event.target.closest("[data-delete]"),
+      cancel = event.target.closest("[data-cancel-edit]");
+    if (cancel) {
+      window.editingProductId = null;
+      draw();
+      return;
     }
-  }finally{
-    submit.disabled=false;
+    if (edit) {
+      window.editingProductId = edit.dataset.editProduct;
+      draw();
+      $("product-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    if (!remove) return;
+    if (remove.dataset.delete === "product") {
+      const item = products().find(
+        (product) => String(product.id) === remove.dataset.id,
+      );
+      if (!item || !confirm(`Remove "${item.name}" from the shop?`)) return;
+      update(ref(database, "products"), { [item.id]: null })
+        .then(() => {
+          D.products = products().filter(
+            (product) => String(product.id) !== String(item.id),
+          );
+          draw();
+          changed();
+          toast("The product has been removed.", "success");
+        })
+        .catch((error) =>
+          toast(error.message || "Could not remove this product.", "error"),
+        );
+    } else if (remove.dataset.delete === "journal") {
+      const item = journal().find(
+        (article) => String(article.id) === remove.dataset.id,
+      );
+      if (item && confirm(`Remove "${item.t}" from the journal?`))
+        update(ref(database, "journal"), { [item.id]: null })
+          .then(() => {
+            D.journal = journal().filter(
+              (article) => String(article.id) !== String(item.id),
+            );
+            draw();
+            changed();
+            toast("The journal post has been removed.", "success");
+          })
+          .catch((error) =>
+            toast(error.message || "Could not remove this post.", "error"),
+          );
+    }
+  });
+}
+
+async function handleAuth(event) {
+  event.preventDefault();
+  const email = $("admin-email").value.trim().toLowerCase(),
+    password = $("admin-password").value;
+  const submit = $("admin-auth-submit");
+  submit.disabled = true;
+  try {
+    if (authMode === "reset") {
+      await sendPasswordResetEmail(auth, email);
+      sayAuth(
+        "If an account exists for this email, Firebase has sent a password reset link.",
+        "success",
+      );
+      return;
+    }
+    if (authMode === "signup") {
+      const displayName = $("admin-name").value.trim();
+      if (displayName.length < 2) {
+        sayAuth("Enter your name to create an account.", "error");
+        return;
+      }
+      if (password.length < 8)
+        return sayAuth(
+          "Use at least eight characters for your password.",
+          "error",
+        );
+      const credential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+      await updateProfile(credential.user, { displayName });
+      try {
+        await sendEmailVerification(credential.user);
+      } catch (error) {
+        console.warn("Verification email not sent:", error?.code || error);
+      }
+      return;
+    }
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    if (authMode === "signup" && error?.code === "auth/email-already-in-use") {
+      setAuthMode("signin");
+      $("admin-email").value = email;
+      sayAuth(authError(error), "error");
+    } else {
+      sayAuth(authError(error), "error");
+    }
+  } finally {
+    submit.disabled = false;
   }
 }
 
-async function loggedIn(user){
-  if(!user){ownerConfirmed=false;draw();$('admin-resend').hidden=true;return}
-  sayAuth('Checking administrator access…');
-  try{
+async function loggedIn(user) {
+  if (!user) {
+    ownerConfirmed = false;
+    draw();
+    $("admin-resend").hidden = true;
+    return;
+  }
+  sayAuth("Checking administrator access…");
+  try {
     await user.reload();
-    $('admin-resend').hidden=true;
+    $("admin-resend").hidden = true;
     await user.getIdToken(true);
     await ensureAdmin();
-    ownerConfirmed=true;
-    if(!new URLSearchParams(location.search).has('dashboard')){location.replace('/index.html?edit=1');return}
-    try{await initializeStore()}catch(error){console.warn('Could not seed the starter catalogue:',error);toast('Could not load the catalogue: '+(error?.message||'check the database rules.'),'error')}
+    ownerConfirmed = true;
+    if (!new URLSearchParams(location.search).has("dashboard")) {
+      location.replace("/index.html?edit=1");
+      return;
+    }
+    try {
+      await initializeStore();
+    } catch (error) {
+      console.warn("Could not seed the starter catalogue:", error);
+      toast(
+        "Could not load the catalogue: " +
+          (error?.message || "check the database rules."),
+        "error",
+      );
+    }
+    try {
+      await syncFromDatabase();
+    } catch (error) {
+      console.warn("Could not load the live catalogue:", error);
+    }
     await loadPrivateStoreData();
     draw();
-  }catch(error){
-    ownerConfirmed=false;draw();
-    sayAuth(authError(error),'error');
-    if(/shopper account/i.test(error?.message||''))signOut(auth).catch(()=>{});
+  } catch (error) {
+    ownerConfirmed = false;
+    draw();
+    sayAuth(authError(error), "error");
+    if (/shopper account/i.test(error?.message || ""))
+      signOut(auth).catch(() => {});
   }
 }
 
-$('admin-resend').addEventListener('click',async()=>{
-  if(!auth.currentUser)return sayAuth('Create an account or sign in before requesting verification.','error');
-  try{
-    const sent=await sendEmailVerification(auth.currentUser);
-    sayAuth(sent?'A new verification link was sent to your email.':'Email could not be sent until this domain is added to Firebase Authentication > Settings > Authorized domains. You can still use your account.',sent?'success':'error');
-  }catch(error){
-    sayAuth(authError(error),'error');
+$("admin-resend").addEventListener("click", async () => {
+  if (!auth.currentUser)
+    return sayAuth(
+      "Create an account or sign in before requesting verification.",
+      "error",
+    );
+  try {
+    const sent = await sendEmailVerification(auth.currentUser);
+    sayAuth(
+      sent
+        ? "A new verification link was sent to your email."
+        : "Email could not be sent until this domain is added to Firebase Authentication > Settings > Authorized domains. You can still use your account.",
+      sent ? "success" : "error",
+    );
+  } catch (error) {
+    sayAuth(authError(error), "error");
   }
 });
-document.addEventListener('submit',event=>{if(event.target.id==='login-form')handleAuth(event)});document.addEventListener('click',event=>{const button=event.target.closest('[data-tab]');if(button){tab=button.dataset.tab;query='';window.editingProductId=null;draw()}});window.addEventListener('message',editWebsiteText);$('admin-logout').addEventListener('click',()=>signOut(auth).catch(error=>toast(error.message||'Could not sign out.','error')));$('admin-create').addEventListener('click',()=>setAuthMode('signup'));$('admin-forgot').addEventListener('click',()=>setAuthMode('reset'));$('admin-cancel').addEventListener('click',()=>setAuthMode('signin'));setAuthMode('signin');draw();onAuthStateChanged(auth,user=>loggedIn(user).catch(error=>{ownerConfirmed=false;draw();sayAuth(error.message||'Could not confirm administrator access.','error')}));
+document.addEventListener("submit", (event) => {
+  if (event.target.id === "login-form") handleAuth(event);
+});
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-tab]");
+  if (button) {
+    tab = button.dataset.tab;
+    query = "";
+    window.editingProductId = null;
+    draw();
+  }
+});
+window.addEventListener("message", editWebsiteText);
+$("admin-logout").addEventListener("click", () =>
+  signOut(auth).catch((error) =>
+    toast(error.message || "Could not sign out.", "error"),
+  ),
+);
+$("admin-create").addEventListener("click", () => setAuthMode("signup"));
+$("admin-forgot").addEventListener("click", () => setAuthMode("reset"));
+$("admin-cancel").addEventListener("click", () => setAuthMode("signin"));
+setAuthMode("signin");
+draw();
+onAuthStateChanged(auth, (user) =>
+  loggedIn(user).catch((error) => {
+    ownerConfirmed = false;
+    draw();
+    sayAuth(
+      error.message || "Could not confirm administrator access.",
+      "error",
+    );
+  }),
+);
